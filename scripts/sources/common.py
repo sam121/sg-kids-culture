@@ -2,6 +2,7 @@ import json
 import re
 from dataclasses import dataclass, asdict
 from datetime import datetime
+from urllib.parse import urlparse
 from typing import List, Optional
 
 import dateutil.parser
@@ -9,6 +10,30 @@ import pytz
 from bs4 import BeautifulSoup
 
 SG_TZ = pytz.timezone("Asia/Singapore")
+
+BLOCKED_TITLE_TERMS = {
+    "exhibitions",
+    "programmes",
+    "plan your itinerary",
+    "admissions",
+    "museum map",
+    "accessibility at the museum",
+    "for groups",
+    "shop & dine",
+    "online exhibitions",
+    "about us",
+    "view all",
+}
+
+BLOCKED_URL_TERMS = [
+    "/plan-your-visit/",
+    "/about-us/",
+    "/shop-and-dine/",
+    "/virtual-gallery/",
+    "/visitor-information/",
+    "/museum-map",
+    "/view-all",
+]
 
 @dataclass
 class Event:
@@ -43,8 +68,13 @@ def parse_date(text: str) -> Optional[datetime]:
     try:
         dt = dateutil.parser.parse(text, dayfirst=False, fuzzy=True)
         if dt.tzinfo is None:
-            return SG_TZ.localize(dt)
-        return dt.astimezone(SG_TZ)
+            dt = SG_TZ.localize(dt)
+        else:
+            dt = dt.astimezone(SG_TZ)
+        now = datetime.now(tz=SG_TZ)
+        if dt.year < now.year - 1 or dt.year > now.year + 3:
+            return None
+        return dt
     except (ValueError, OverflowError):
         return None
 
@@ -62,10 +92,54 @@ def parse_age_range(text: str) -> tuple[Optional[int], Optional[int]]:
         m = re.search(pat, text, flags=re.IGNORECASE)
         if m:
             if len(m.groups()) == 2:
-                return int(m.group(1)), int(m.group(2))
+                lo, hi = int(m.group(1)), int(m.group(2))
+                if lo > 17:
+                    return None, None
+                return lo, min(hi, 17)
             if len(m.groups()) == 1:
-                return int(m.group(1)), None
+                lo = int(m.group(1))
+                if lo > 17:
+                    return None, None
+                return lo, None
     return None, None
+
+
+def age_bucket(age_min: Optional[int], age_max: Optional[int]) -> str:
+    if age_max is not None:
+        if age_max <= 5:
+            return "0-5"
+        if age_max <= 12:
+            return "6-12"
+    if age_min is None:
+        return "all"
+    if age_min <= 5:
+        return "0-5"
+    if age_min <= 12:
+        return "6-12"
+    if age_min <= 17:
+        return "13-17"
+    return "all"
+
+
+def is_probable_event(event: Event) -> bool:
+    title = normalize_space(event.title).lower()
+    if not title:
+        return False
+    if title in BLOCKED_TITLE_TERMS:
+        return False
+    url = (event.url or "").strip()
+    if not url.startswith("http"):
+        return False
+    path = urlparse(url).path.lower()
+    if any(term in path for term in BLOCKED_URL_TERMS):
+        return False
+    # Keep to known event-like paths for this first pass.
+    if "/whats-on/" not in path and "/events/" not in path and "/concert" not in path:
+        return False
+    # Must have at least one hint of timing or age relevance.
+    if not event.start and event.age_min is None and event.age_max is None:
+        return False
+    return True
 
 
 def extract_jsonld_events(html: str, source: str) -> List[Event]:

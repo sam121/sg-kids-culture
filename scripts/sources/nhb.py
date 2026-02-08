@@ -10,6 +10,13 @@ NMS_LISTING = f"{NMS_BASE}/whats-on"
 ACM_BASE = "https://www.nhb.gov.sg/acm"
 ACM_LISTING = f"{ACM_BASE}/whats-on/programmes"
 
+BLOCKED_PATH_SNIPPETS = [
+    "/whats-on/exhibition/exhibitions",
+    "/whats-on/programme/programmes",
+    "/whats-on/plan-your-itinerary",
+    "/whats-on/view-all",
+]
+
 
 def _collect_links(html: str, base: str, limit: int = 15) -> list[str]:
     soup = BeautifulSoup(html, "lxml")
@@ -18,7 +25,14 @@ def _collect_links(html: str, base: str, limit: int = 15) -> list[str]:
         href = a["href"]
         if href.startswith("/"):
             href = base + href
-        if href.startswith(base) and href not in links:
+        href_l = href.lower()
+        if not href_l.startswith(base.lower()):
+            continue
+        if "/whats-on/" not in href_l:
+            continue
+        if any(snippet in href_l for snippet in BLOCKED_PATH_SNIPPETS):
+            continue
+        if href not in links:
             links.append(href)
         if len(links) >= limit:
             break

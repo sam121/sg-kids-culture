@@ -48,6 +48,7 @@ HTML_TEMPLATE = """<!doctype html>
     .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
     .filter-btn { border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; }
     .filter-btn.active { background: var(--accent); color: #0b1021; border-color: var(--accent); }
+    .count { margin-top: 8px; }
     .signup { margin-top: 22px; padding: 16px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 12px; }
     footer { margin-top: 32px; color: var(--muted); font-size: 13px; }
   </style>
@@ -68,6 +69,7 @@ HTML_TEMPLATE = """<!doctype html>
       <button class=\"filter-btn\" data-age=\"6-12\">6-12</button>
       <button class=\"filter-btn\" data-age=\"13-17\">13-17</button>
     </div>
+    <div id=\"result-count\" class=\"muted count\"></div>
 
     <div class=\"signup\">
       <div class=\"muted\" style=\"margin-bottom:8px;\">Get this list by email (Kit):</div>
@@ -89,7 +91,10 @@ HTML_TEMPLATE = """<!doctype html>
       const hi = ev.age_max;
       if (hi !== null && hi !== undefined && hi <= 5) return '0-5';
       if (hi !== null && hi !== undefined && hi <= 12) return '6-12';
-      if (lo !== null && lo !== undefined && lo >= 13) return '13-17';
+      if (lo === null || lo === undefined) return 'all';
+      if (lo <= 5) return '0-5';
+      if (lo <= 12) return '6-12';
+      if (lo <= 17) return '13-17';
       return 'all';
     }
 
@@ -108,9 +113,8 @@ HTML_TEMPLATE = """<!doctype html>
 
     function render(filterAge = 'all') {
       grid.innerHTML = '';
-      events
-        .filter(ev => filterAge === 'all' || bucket(ev) === filterAge)
-        .forEach(ev => {
+      const filtered = events.filter(ev => filterAge === 'all' || bucket(ev) === filterAge);
+      filtered.forEach(ev => {
           const card = document.createElement('div');
           card.className = 'card';
           card.innerHTML = `
@@ -126,7 +130,11 @@ HTML_TEMPLATE = """<!doctype html>
             </div>
           `;
           grid.appendChild(card);
-        });
+      });
+      const countEl = document.getElementById('result-count');
+      if (countEl) {
+        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown`;
+      }
     }
 
     document.querySelectorAll('.filter-btn').forEach(btn => {

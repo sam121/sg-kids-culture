@@ -46,13 +46,13 @@ def fetch(max_events: int = 25) -> list[Event]:
         html = get(listing)
         if not html:
             continue
-        events.extend(extract_jsonld_events(html, "nhb"))
+        events.extend(extract_jsonld_events(html, "nhb", page_url=listing))
         links = _collect_links(html, base, limit=max_events)
         for url in links:
             page = get(url)
             if not page:
                 continue
-            jsonld = extract_jsonld_events(page, "nhb")
+            jsonld = extract_jsonld_events(page, "nhb", page_url=url)
             if jsonld:
                 events.extend(jsonld)
                 continue

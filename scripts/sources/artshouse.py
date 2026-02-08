@@ -26,13 +26,13 @@ def fetch(max_events: int = 20) -> list[Event]:
             break
 
     events: list[Event] = []
-    events.extend(extract_jsonld_events(html, "artshouse"))
+    events.extend(extract_jsonld_events(html, "artshouse", page_url=LISTING))
 
     for url in links:
         page = get(url)
         if not page:
             continue
-        jsonld = extract_jsonld_events(page, "artshouse")
+        jsonld = extract_jsonld_events(page, "artshouse", page_url=url)
         if jsonld:
             events.extend(jsonld)
             continue

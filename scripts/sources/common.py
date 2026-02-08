@@ -23,6 +23,12 @@ BLOCKED_TITLE_TERMS = {
     "online exhibitions",
     "about us",
     "view all",
+    "festivals & series",
+    "festivals",
+    "series",
+    "free programmes",
+    "collaborations",
+    "playtime!",
 }
 
 BLOCKED_URL_TERMS = [
@@ -34,6 +40,16 @@ BLOCKED_URL_TERMS = [
     "/museum-map",
     "/view-all",
 ]
+
+BLOCKED_URL_PATHS = {
+    "/whats-on/festivals-and-series",
+    "/whats-on/festivals-and-series/festivals",
+    "/whats-on/festivals-and-series/series",
+    "/whats-on/festivals-and-series/free-programmes",
+    "/whats-on/festivals-and-series/collaborations",
+    "/whats-on/festivals-and-series/series/playtime",
+    "/whats-on/sg-culture-pass",
+}
 
 @dataclass
 class Event:
@@ -139,7 +155,10 @@ def is_probable_event(event: Event) -> bool:
     if not url.startswith("http"):
         return False
     path = urlparse(url).path.lower()
+    path = path.rstrip("/") or "/"
     if any(term in path for term in BLOCKED_URL_TERMS):
+        return False
+    if path in BLOCKED_URL_PATHS:
         return False
     # Keep to known event-like paths for this first pass.
     if "/whats-on/" not in path and "/events/" not in path and "/concert" not in path:
@@ -150,7 +169,7 @@ def is_probable_event(event: Event) -> bool:
     return True
 
 
-def extract_jsonld_events(html: str, source: str) -> List[Event]:
+def extract_jsonld_events(html: str, source: str, page_url: Optional[str] = None) -> List[Event]:
     soup = BeautifulSoup(html, "lxml")
     events: List[Event] = []
     for script in soup.find_all("script", type="application/ld+json"):
@@ -165,7 +184,7 @@ def extract_jsonld_events(html: str, source: str) -> List[Event]:
             if item.get("@type") not in ("Event", ["Event"], "MusicEvent", "TheaterEvent"):
                 continue
             title = item.get("name") or "Untitled"
-            url = item.get("url") or item.get("@id") or ""
+            url = item.get("url") or item.get("@id") or page_url or ""
             start = parse_date(item.get("startDate"))
             end = parse_date(item.get("endDate"))
             offers = item.get("offers") or {}

@@ -26,14 +26,14 @@ def fetch(max_events: int = 20) -> list[Event]:
 
     events: list[Event] = []
     # If no explicit event links found, fall back to JSON-LD on listing page
-    listing_events = extract_jsonld_events(html, "sso")
+    listing_events = extract_jsonld_events(html, "sso", page_url=LISTING)
     events.extend(listing_events)
 
     for url in links:
         page = get(url)
         if not page:
             continue
-        jsonld = extract_jsonld_events(page, "sso")
+        jsonld = extract_jsonld_events(page, "sso", page_url=url)
         if jsonld:
             events.extend(jsonld)
             continue

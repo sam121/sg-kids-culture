@@ -27,13 +27,13 @@ def fetch(max_events: int = 15) -> list[Event]:
 
     events: list[Event] = []
     # JSON-LD on listing page
-    events.extend(extract_jsonld_events(html, "sco"))
+    events.extend(extract_jsonld_events(html, "sco", page_url=LISTING))
 
     for url in links:
         page = get(url)
         if not page:
             continue
-        jsonld = extract_jsonld_events(page, "sco")
+        jsonld = extract_jsonld_events(page, "sco", page_url=url)
         if jsonld:
             events.extend(jsonld)
             continue

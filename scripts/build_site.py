@@ -158,7 +158,13 @@ def load_events(path: Path) -> List[dict]:
 
 
 def render_html(events: List[dict]) -> str:
-    events_json = json.dumps(events)
+    # Escape HTML-significant characters to avoid accidentally closing script tags.
+    events_json = (
+        json.dumps(events)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
     return (
         HTML_TEMPLATE.replace("__SITE_TITLE__", SITE_TITLE)
         .replace("__EVENTS_JSON__", events_json)

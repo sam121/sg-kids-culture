@@ -56,10 +56,18 @@ class Event:
             data["start"] = self.start.astimezone(SG_TZ).isoformat()
         if self.end:
             data["end"] = self.end.astimezone(SG_TZ).isoformat()
+        if self.raw_date:
+            data["raw_date"] = clean_text(self.raw_date)
         return data
 
 def normalize_space(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
+
+
+def clean_text(text: str) -> str:
+    # Strip embedded markup/scripts from extracted text blobs before serializing.
+    plain = BeautifulSoup(text, "lxml").get_text(" ", strip=True)
+    return normalize_space(plain)
 
 
 def parse_date(text: str) -> Optional[datetime]:

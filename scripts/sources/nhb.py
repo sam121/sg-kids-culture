@@ -9,6 +9,7 @@ from .common import (
     normalize_space,
     parse_age_ranges,
     parse_date,
+    parse_date_range,
     summarize_age_ranges,
 )
 from .http import get
@@ -66,16 +67,20 @@ def fetch(max_events: int = 25) -> list[Event]:
                 continue
             soup_ev = BeautifulSoup(page, "lxml")
             title_el = soup_ev.find("h1")
+            start, end, raw_date = parse_date_range(page)
             date_el = soup_ev.find(string=lambda s: s and any(ch.isdigit() for ch in s))
-            start = parse_date(date_el) if date_el else None
+            if not start:
+                start = parse_date(date_el) if date_el else None
             age_ranges = parse_age_ranges(page)
             age_min, age_max = summarize_age_ranges(age_ranges)
             title = normalize_space(title_el.get_text()) if title_el else "(Museum event)"
+            fallback_date_text = normalize_space(date_el) if date_el else None
             events.append(Event(
                 title=title,
                 url=url,
                 source="nhb",
                 start=start,
+                end=end,
                 age_min=age_min,
                 age_max=age_max,
                 age_ranges=age_ranges or None,
@@ -83,8 +88,8 @@ def fetch(max_events: int = 25) -> list[Event]:
                     title=title,
                     url=url,
                     source="nhb",
-                    text_blob=normalize_space(date_el) if date_el else "",
+                    text_blob=raw_date or (normalize_space(date_el) if date_el else ""),
                 ) or None,
-                raw_date=normalize_space(date_el) if date_el else None,
+                raw_date=raw_date or fallback_date_text,
             ))
     return events

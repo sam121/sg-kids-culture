@@ -171,7 +171,6 @@ def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
         # Lower confidence: unlabeled age statements.
         (1, r"\b(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})\s*years?(?:\s*old)?\b", "range"),
         (1, r"\b(\d{1,2})\s*(?:\+|and\s*above)\s*years?(?:\s*old)?\b", "plus"),
-        (1, r"\b(?:under|below)\s*(\d{1,2})\s*years?(?:\s*old)?\b", "under"),
     ]
 
     for priority, pattern, kind in patterns:
@@ -180,8 +179,8 @@ def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
                 lo, hi = int(match.group(1)), int(match.group(2))
             elif kind == "plus":
                 lo, hi = int(match.group(1)), None
-            else:  # "under"
-                lo, hi = None, int(match.group(1)) - 1
+            else:
+                continue
             lo, hi = _normalize_age_range(lo, hi)
             if lo is None and hi is None:
                 continue
@@ -207,6 +206,26 @@ def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
 def parse_age_range(text: str) -> tuple[Optional[int], Optional[int]]:
     ranges = parse_age_ranges(text)
     return summarize_age_ranges(ranges)
+
+
+def parse_date_range(text: str) -> tuple[Optional[datetime], Optional[datetime], Optional[str]]:
+    if not text:
+        return None, None, None
+    blob = clean_text(text)
+    patterns = [
+        r"\b(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\s*(?:to|[–-])\s*(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\b",
+        r"\b(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2})\s*(?:to|[–-])\s*(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2})\b",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, blob, flags=re.IGNORECASE):
+            start = parse_date(match.group(1))
+            end = parse_date(match.group(2))
+            if not start or not end:
+                continue
+            if end < start:
+                continue
+            return start, end, match.group(0)
+    return None, None, None
 
 
 def summarize_age_ranges(

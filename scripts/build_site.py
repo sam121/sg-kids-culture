@@ -46,6 +46,8 @@ HTML_TEMPLATE = """<!doctype html>
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
     .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .filter-groups { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
+    .filter-group .muted { font-size: 13px; }
     .filter-btn { border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; }
     .filter-btn.active { background: var(--accent); color: #0b1021; border-color: var(--accent); }
     .count { margin-top: 8px; }
@@ -63,11 +65,30 @@ HTML_TEMPLATE = """<!doctype html>
       <div class=\"muted\"><a href=\"rss.xml\">RSS</a></div>
     </header>
 
-    <div class=\"filters\">
-      <button class=\"filter-btn active\" data-age=\"all\">All ages</button>
-      <button class=\"filter-btn\" data-age=\"0-5\">0-5</button>
-      <button class=\"filter-btn\" data-age=\"6-12\">6-12</button>
-      <button class=\"filter-btn\" data-age=\"13-17\">13-17</button>
+    <div class=\"filter-groups\">
+      <div class=\"filter-group\">
+        <div class=\"muted\">Age</div>
+        <div class=\"filters\" id=\"age-filters\">
+          <button class=\"filter-btn active\" data-age=\"all\">All ages</button>
+          <button class=\"filter-btn\" data-age=\"0-5\">0-5</button>
+          <button class=\"filter-btn\" data-age=\"6-12\">6-12</button>
+          <button class=\"filter-btn\" data-age=\"13-17\">13-17</button>
+        </div>
+      </div>
+      <div class=\"filter-group\">
+        <div class=\"muted\">Category</div>
+        <div class=\"filters\" id=\"category-filters\">
+          <button class=\"filter-btn active\" data-category=\"all\">All categories</button>
+          <button class=\"filter-btn\" data-category=\"Theatre\">Theatre</button>
+          <button class=\"filter-btn\" data-category=\"Opera\">Opera</button>
+          <button class=\"filter-btn\" data-category=\"Orchestra\">Orchestra</button>
+          <button class=\"filter-btn\" data-category=\"Cinema\">Cinema</button>
+          <button class=\"filter-btn\" data-category=\"Dance\">Dance</button>
+          <button class=\"filter-btn\" data-category=\"Music\">Music</button>
+          <button class=\"filter-btn\" data-category=\"Workshop\">Workshop</button>
+          <button class=\"filter-btn\" data-category=\"Exhibition\">Exhibition</button>
+        </div>
+      </div>
     </div>
     <div id=\"result-count\" class=\"muted count\"></div>
 
@@ -101,6 +122,11 @@ HTML_TEMPLATE = """<!doctype html>
       return ranges;
     }
 
+    function eventCategories(ev) {
+      if (!Array.isArray(ev.categories)) return [];
+      return ev.categories.filter(Boolean);
+    }
+
     function bucketOverlap(r, bucket) {
       const bounds = { '0-5': [0, 5], '6-12': [6, 12], '13-17': [13, 17] }[bucket];
       if (!bounds) return true;
@@ -117,9 +143,10 @@ HTML_TEMPLATE = """<!doctype html>
       return buckets;
     }
 
-    function matchesFilter(ev, filterAge) {
-      if (filterAge === 'all') return true;
-      return eventBuckets(ev).includes(filterAge);
+    function matchesFilter(ev, filterAge, filterCategory) {
+      if (filterAge !== 'all' && !eventBuckets(ev).includes(filterAge)) return false;
+      if (filterCategory !== 'all' && !eventCategories(ev).includes(filterCategory)) return false;
+      return true;
     }
 
     function bucketLabel(ev) {
@@ -141,16 +168,18 @@ HTML_TEMPLATE = """<!doctype html>
       });
     }
 
-    function render(filterAge = 'all') {
+    function render(filterAge = 'all', filterCategory = 'all') {
       grid.innerHTML = '';
-      const filtered = events.filter(ev => matchesFilter(ev, filterAge));
+      const filtered = events.filter(ev => matchesFilter(ev, filterAge, filterCategory));
       filtered.forEach(ev => {
           const card = document.createElement('div');
           card.className = 'card';
+          const categoryPills = eventCategories(ev).map(cat => `<span class=\"pill\">${cat}</span>`).join('');
           card.innerHTML = `
             <div class=\"pill-row\">
               <span class=\"pill\">${ev.source}</span>
               <span class=\"pill\">${bucketLabel(ev)}</span>
+              ${categoryPills}
             </div>
             <a class=\"title\" href=\"${ev.url}\" target=\"_blank\" rel=\"noopener\">${ev.title}</a>
             <div class=\"meta muted\">
@@ -167,15 +196,27 @@ HTML_TEMPLATE = """<!doctype html>
       }
     }
 
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+    const state = { age: 'all', category: 'all' };
+
+    document.querySelectorAll('#age-filters .filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#age-filters .filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        render(btn.dataset.age);
+        state.age = btn.dataset.age;
+        render(state.age, state.category);
       });
     });
 
-    render();
+    document.querySelectorAll('#category-filters .filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#category-filters .filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.category = btn.dataset.category;
+        render(state.age, state.category);
+      });
+    });
+
+    render(state.age, state.category);
   </script>
 </body>
 </html>
@@ -214,7 +255,8 @@ def render_rss(events: List[dict]) -> str:
             age_text = f"Ages {ev.get('age_min')}+"
         else:
             age_text = ""
-        desc_parts = [ev.get("venue"), ev.get("price"), age_text]
+        category_text = ", ".join(ev.get("categories") or [])
+        desc_parts = [ev.get("venue"), ev.get("price"), age_text, category_text]
         description = " | ".join([p for p in desc_parts if p])
         items.append(
             f"""

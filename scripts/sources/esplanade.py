@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from .common import (
     Event,
     extract_jsonld_events,
+    infer_categories,
     normalize_space,
     parse_age_ranges,
     parse_date,
@@ -18,6 +19,9 @@ from .http import get
 BASE = "https://www.esplanade.com"
 LISTING = f"{BASE}/whats-on"
 LISTING_API = f"{BASE}/sitecore/api/website/event/listing/view-by-event"
+PRIORITY_PAGES = [
+    f"{BASE}/whats-on/festivals-and-series/series/playtime",
+]
 
 
 def _collect_whats_on_links(html: str, limit: int = 50) -> list[str]:
@@ -92,6 +96,18 @@ def _fetch_listing_component_events(html: str) -> tuple[list[Event], list[str]]:
             continue
         age_ranges = parse_age_ranges(page_data.get("Description") or "")
         age_min, age_max = summarize_age_ranges(age_ranges)
+        categories = infer_categories(
+            title=title,
+            url=event_url,
+            source="esplanade",
+            text_blob=" ".join(
+                [
+                    page_data.get("Description") or "",
+                    item.get("CategoryName") or "",
+                    item.get("Tag") or "",
+                ]
+            ),
+        )
         out_events.append(
             Event(
                 title=title,
@@ -104,6 +120,7 @@ def _fetch_listing_component_events(html: str) -> tuple[list[Event], list[str]]:
                 age_min=age_min,
                 age_max=age_max,
                 age_ranges=age_ranges or None,
+                categories=categories or None,
             )
         )
         out_links.append(event_url)
@@ -115,10 +132,15 @@ def fetch(max_events: int = 40) -> list[Event]:
     if not html:
         return []
     events: list[Event] = []
-    queue = deque(_collect_whats_on_links(html, limit=max_events))
+    seed_links = PRIORITY_PAGES + _collect_whats_on_links(html, limit=max_events)
+    queue = deque()
+    for link in seed_links:
+        if link not in queue:
+            queue.append(link)
     visited: set[str] = set()
+    max_pages = max(max_events + 40, 80)
 
-    while queue and len(visited) < max_events:
+    while queue and len(visited) < max_pages:
         url = queue.popleft()
         if url in visited:
             continue
@@ -128,8 +150,11 @@ def fetch(max_events: int = 40) -> list[Event]:
             continue
         listing_events, listing_links = _fetch_listing_component_events(page)
         events.extend(listing_events)
-        child_links = _collect_whats_on_links(page, limit=max_events) + listing_links
-        for child in child_links:
+        # Prioritize component-listed event links so details (age/date) are crawled before cap.
+        for child in listing_links:
+            if child not in visited and child not in queue:
+                queue.appendleft(child)
+        for child in _collect_whats_on_links(page, limit=12):
             if child not in visited and child not in queue:
                 queue.append(child)
         jsonld = extract_jsonld_events(
@@ -144,17 +169,28 @@ def fetch(max_events: int = 40) -> list[Event]:
             soup_ev = BeautifulSoup(page, "lxml")
             title_el = soup_ev.find("h1")
             date_el = soup_ev.find(string=lambda s: s and "202" in s)
+            page_category = ""
+            page_category_meta = soup_ev.find("meta", attrs={"name": "pageCategory"})
+            if page_category_meta:
+                page_category = page_category_meta.get("content") or ""
             start = parse_date(date_el) if date_el else None
             age_ranges = parse_age_ranges(page)
             age_min, age_max = summarize_age_ranges(age_ranges)
+            title = normalize_space(title_el.get_text()) if title_el else "(Esplanade event)"
             events.append(Event(
-                title=normalize_space(title_el.get_text()) if title_el else "(Esplanade event)",
+                title=title,
                 url=url,
                 source="esplanade",
                 start=start,
                 age_min=age_min,
                 age_max=age_max,
                 age_ranges=age_ranges or None,
+                categories=infer_categories(
+                    title=title,
+                    url=url,
+                    source="esplanade",
+                    text_blob=page_category,
+                ) or None,
                 raw_date=normalize_space(date_el) if date_el else None,
             ))
     return events

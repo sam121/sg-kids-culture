@@ -51,6 +51,35 @@ BLOCKED_URL_PATHS = {
     "/whats-on/sg-culture-pass",
 }
 
+CATEGORY_ORDER = [
+    "Theatre",
+    "Opera",
+    "Orchestra",
+    "Cinema",
+    "Dance",
+    "Music",
+    "Workshop",
+    "Exhibition",
+]
+
+CATEGORY_PATTERNS = {
+    "Theatre": re.compile(r"\b(theatre|theater|playtime|play\b|musical|drama|puppet|stage)\b", re.IGNORECASE),
+    "Opera": re.compile(r"\bopera\b", re.IGNORECASE),
+    "Orchestra": re.compile(r"\b(orchestra|symphony|philharmonic)\b", re.IGNORECASE),
+    "Cinema": re.compile(r"\b(cinema|film|movie|screening)\b", re.IGNORECASE),
+    "Dance": re.compile(r"\b(dance|ballet|choreograph|hip[\s-]?hop)\b", re.IGNORECASE),
+    "Music": re.compile(r"\b(music|concert|choir|jazz|recital|ensemble|band|organ)\b", re.IGNORECASE),
+    "Workshop": re.compile(r"\b(workshop|masterclass|class|lab|hands[\s-]?on)\b", re.IGNORECASE),
+    "Exhibition": re.compile(r"\b(exhibition|exhibit|gallery|museum|installation|visual[\s-]?arts)\b", re.IGNORECASE),
+}
+
+SOURCE_DEFAULT_CATEGORIES = {
+    "sso": ["Orchestra", "Music"],
+    "sco": ["Orchestra", "Music"],
+    "gallery": ["Exhibition"],
+    "nhb": ["Exhibition"],
+}
+
 @dataclass
 class Event:
     title: str
@@ -209,6 +238,37 @@ def age_bucket(age_min: Optional[int], age_max: Optional[int]) -> str:
     return "all"
 
 
+def infer_categories(
+    title: str,
+    url: str,
+    source: str,
+    text_blob: str = "",
+    jsonld_type: Optional[str] = None,
+) -> List[str]:
+    hits: list[str] = []
+
+    def add(category: str):
+        if category in CATEGORY_ORDER and category not in hits:
+            hits.append(category)
+
+    src = (source or "").lower()
+    for category in SOURCE_DEFAULT_CATEGORIES.get(src, []):
+        add(category)
+
+    event_type = (jsonld_type or "").lower()
+    if event_type == "musicevent":
+        add("Music")
+    if event_type == "theaterevent":
+        add("Theatre")
+
+    haystack = " ".join([title or "", url or "", text_blob or ""])
+    for category in CATEGORY_ORDER:
+        pattern = CATEGORY_PATTERNS[category]
+        if pattern.search(haystack):
+            add(category)
+    return hits
+
+
 def is_probable_event(event: Event) -> bool:
     title = normalize_space(event.title).lower()
     if not title:
@@ -218,11 +278,18 @@ def is_probable_event(event: Event) -> bool:
     url = (event.url or "").strip()
     if not url.startswith("http"):
         return False
-    path = urlparse(url).path.lower()
+    parsed = urlparse(url)
+    path = parsed.path.lower()
     path = path.rstrip("/") or "/"
     if any(term in path for term in BLOCKED_URL_TERMS):
         return False
     if path in BLOCKED_URL_PATHS:
+        return False
+    if path.endswith(("/about", "/contact", "/sponsors")):
+        return False
+    if "/festivals-and-series/" in path and path.endswith("/events"):
+        return False
+    if "category=" in (parsed.query or "").lower():
         return False
     # Keep to known event-like paths for this first pass.
     if "/whats-on/" not in path and "/events/" not in path and "/concert" not in path:
@@ -261,7 +328,8 @@ def extract_jsonld_events(
         for item in candidates:
             if not isinstance(item, dict):
                 continue
-            if item.get("@type") not in ("Event", ["Event"], "MusicEvent", "TheaterEvent"):
+            item_type = item.get("@type")
+            if item_type not in ("Event", ["Event"], "MusicEvent", "TheaterEvent"):
                 continue
             title = item.get("name") or "Untitled"
             url = item.get("url") or item.get("@id") or page_url or ""
@@ -280,6 +348,13 @@ def extract_jsonld_events(
             if not age_ranges and fallback_age_text:
                 age_ranges = parse_age_ranges(fallback_age_text)
             age_min, age_max = summarize_age_ranges(age_ranges)
+            categories = infer_categories(
+                title=title,
+                url=url,
+                source=source,
+                text_blob=json.dumps(item),
+                jsonld_type=(item_type[0] if isinstance(item_type, list) and item_type else item_type),
+            )
             events.append(Event(
                 title=normalize_space(title),
                 url=url,
@@ -291,6 +366,7 @@ def extract_jsonld_events(
                 age_min=age_min,
                 age_max=age_max,
                 age_ranges=age_ranges or None,
+                categories=categories or None,
                 image=image,
             ))
     return events
@@ -324,6 +400,14 @@ def dedupe(events: List[Event]) -> List[Event]:
             merged.image = right.image
         if not merged.raw_date:
             merged.raw_date = right.raw_date
+        if right.categories:
+            existing = set(merged.categories or [])
+            combined = list(merged.categories or [])
+            for category in right.categories:
+                if category not in existing:
+                    existing.add(category)
+                    combined.append(category)
+            merged.categories = combined
         return merged
 
     by_key: dict[tuple[str, str], Event] = {}

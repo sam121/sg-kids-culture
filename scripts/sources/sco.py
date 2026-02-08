@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from .common import (
     Event,
     extract_jsonld_events,
+    infer_categories,
     normalize_space,
     parse_age_ranges,
     parse_date,
@@ -50,14 +51,21 @@ def fetch(max_events: int = 15) -> list[Event]:
         start = parse_date(date_el) if date_el else None
         age_ranges = parse_age_ranges(page)
         age_min, age_max = summarize_age_ranges(age_ranges)
+        title = normalize_space(title_el.get_text()) if title_el else "(SCO event)"
         events.append(Event(
-            title=normalize_space(title_el.get_text()) if title_el else "(SCO event)",
+            title=title,
             url=url,
             source="sco",
             start=start,
             age_min=age_min,
             age_max=age_max,
             age_ranges=age_ranges or None,
+            categories=infer_categories(
+                title=title,
+                url=url,
+                source="sco",
+                text_blob=normalize_space(date_el) if date_el else "",
+            ) or None,
             raw_date=normalize_space(date_el) if date_el else None,
         ))
     return events

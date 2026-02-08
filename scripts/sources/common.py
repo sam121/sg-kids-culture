@@ -91,7 +91,15 @@ def parse_date(text: str) -> Optional[datetime]:
     if not text:
         return None
     try:
-        dt = dateutil.parser.parse(text, dayfirst=False, fuzzy=True)
+        normalized = clean_text(text)
+        normalized = re.sub(r"\s*/\s*", " ", normalized)
+        normalized = re.sub(
+            r"(\d{1,2})\.(\d{2})\s*(am|pm)\b",
+            lambda m: f"{m.group(1)}:{m.group(2)} {m.group(3)}",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        dt = dateutil.parser.parse(normalized, dayfirst=False, fuzzy=True)
         if dt.tzinfo is None:
             dt = SG_TZ.localize(dt)
         else:
@@ -225,6 +233,17 @@ def is_probable_event(event: Event) -> bool:
     return True
 
 
+def is_upcoming_event(event: Event, reference: Optional[datetime] = None) -> bool:
+    ref = reference or datetime.now(tz=SG_TZ)
+    ref_date = ref.astimezone(SG_TZ).date()
+    if event.end:
+        return event.end.astimezone(SG_TZ).date() >= ref_date
+    if event.start:
+        return event.start.astimezone(SG_TZ).date() >= ref_date
+    # Keep undated events; caller may choose to hide separately.
+    return True
+
+
 def extract_jsonld_events(
     html: str,
     source: str,
@@ -278,15 +297,47 @@ def extract_jsonld_events(
 
 
 def dedupe(events: List[Event]) -> List[Event]:
-    seen = set()
-    unique = []
+    def merge_events(left: Event, right: Event) -> Event:
+        merged = left
+        if not merged.start or (right.start and right.start < merged.start):
+            merged.start = right.start or merged.start
+        if not merged.end or (right.end and right.end > merged.end):
+            merged.end = right.end or merged.end
+        if not merged.venue:
+            merged.venue = right.venue
+        if not merged.price:
+            merged.price = right.price
+        if merged.age_min is None:
+            merged.age_min = right.age_min
+        if merged.age_max is None:
+            merged.age_max = right.age_max
+        if right.age_ranges:
+            existing = set(tuple(x) for x in (merged.age_ranges or []))
+            combined = list(merged.age_ranges or [])
+            for rng in right.age_ranges:
+                key = tuple(rng)
+                if key not in existing:
+                    existing.add(key)
+                    combined.append(rng)
+            merged.age_ranges = combined
+        if not merged.image:
+            merged.image = right.image
+        if not merged.raw_date:
+            merged.raw_date = right.raw_date
+        return merged
+
+    by_key: dict[tuple[str, str], Event] = {}
     for ev in events:
-        key = (ev.title.lower(), ev.start.isoformat() if ev.start else ev.url)
-        if key in seen:
+        if ev.url:
+            key = ("url", ev.url.rstrip("/").lower())
+        else:
+            start_key = ev.start.isoformat() if ev.start else ""
+            key = ("title_start", f"{ev.title.lower()}|{start_key}")
+        if key in by_key:
+            by_key[key] = merge_events(by_key[key], ev)
             continue
-        seen.add(key)
-        unique.append(ev)
-    return unique
+        by_key[key] = ev
+    return list(by_key.values())
 
 
 def sort_events(events: List[Event]) -> List[Event]:

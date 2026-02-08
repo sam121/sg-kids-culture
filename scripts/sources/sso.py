@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from bs4 import BeautifulSoup
 
 from .common import (
@@ -14,6 +15,24 @@ from .http import get
 
 BASE = "https://www.sso.org.sg"
 LISTING = f"{BASE}/family-concerts"
+
+
+def _extract_when_text(soup: BeautifulSoup) -> str | None:
+    when_label = soup.find(
+        lambda tag: tag.name in {"strong", "h3", "h4"}
+        and tag.get_text(strip=True).lower() == "when"
+    )
+    if when_label:
+        sibling = when_label.find_next_sibling()
+        while sibling is not None:
+            text = sibling.get_text(" ", strip=True)
+            if text:
+                return text
+            sibling = sibling.find_next_sibling()
+    # Fallback to explicit date-like sentence in visible text only.
+    visible = soup.get_text("\n", strip=True)
+    m = re.search(r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s*/\s*\d{1,2}\s*[A-Za-z]{3}\s*\d{2,4}\s*/\s*\d{1,2}(?:\.\d{2})?\s*(?:am|pm)", visible, flags=re.IGNORECASE)
+    return m.group(0) if m else None
 
 
 def fetch(max_events: int = 20) -> list[Event]:
@@ -46,8 +65,8 @@ def fetch(max_events: int = 20) -> list[Event]:
             continue
         soup_ev = BeautifulSoup(page, "lxml")
         title_el = soup_ev.find("h1")
-        date_el = soup_ev.find(string=lambda s: s and any(ch.isdigit() for ch in s))
-        start = parse_date(date_el) if date_el else None
+        when_text = _extract_when_text(soup_ev)
+        start = parse_date(when_text) if when_text else None
         age_ranges = parse_age_ranges(page)
         age_min, age_max = summarize_age_ranges(age_ranges)
         events.append(Event(
@@ -58,6 +77,6 @@ def fetch(max_events: int = 20) -> list[Event]:
             age_min=age_min,
             age_max=age_max,
             age_ranges=age_ranges or None,
-            raw_date=normalize_space(date_el) if date_el else None,
+            raw_date=normalize_space(when_text) if when_text else None,
         ))
     return events

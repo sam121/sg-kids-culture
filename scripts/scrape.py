@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List
 
 from sources import artshouse, esplanade, gallery, nhb, sco, sso
-from sources.common import Event, dedupe, is_probable_event, sort_events
+from sources.common import Event, dedupe, is_probable_event, is_upcoming_event, sort_events
 
 SOURCES = [
     esplanade,
@@ -25,6 +25,7 @@ def run() -> List[Event]:
         except Exception as exc:  # pragma: no cover
             print(f"[warn] {module.__name__} failed: {exc}")
     events = [e for e in events if is_probable_event(e)]
+    events = [e for e in events if is_upcoming_event(e)]
     events = dedupe(events)
     events = sort_events(events)
     return events

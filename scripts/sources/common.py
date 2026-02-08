@@ -41,7 +41,10 @@ def parse_date(text: str) -> Optional[datetime]:
     if not text:
         return None
     try:
-        return dateutil.parser.parse(text, dayfirst=False, fuzzy=True)
+        dt = dateutil.parser.parse(text, dayfirst=False, fuzzy=True)
+        if dt.tzinfo is None:
+            return SG_TZ.localize(dt)
+        return dt.astimezone(SG_TZ)
     except (ValueError, OverflowError):
         return None
 
@@ -121,4 +124,5 @@ def dedupe(events: List[Event]) -> List[Event]:
 
 
 def sort_events(events: List[Event]) -> List[Event]:
-    return sorted(events, key=lambda e: e.start or datetime.now(tz=SG_TZ))
+    fallback = datetime.now(tz=SG_TZ)
+    return sorted(events, key=lambda e: e.start.astimezone(SG_TZ) if e.start else fallback)

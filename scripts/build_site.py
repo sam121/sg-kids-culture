@@ -10,7 +10,7 @@ import pytz
 SG_TZ = pytz.timezone("Asia/Singapore")
 SITE_TITLE = "Singapore Kids Culture Weekly"
 SITE_DESC = "Kid-friendly cultural events in Singapore: theatre, music, dance, museums."
-BASE_URL = "https://example.github.io/sg-kids-culture"  # replace after repo is live
+BASE_URL = "https://sam121.github.io/sg-kids-culture/"
 
 
 def load_events(path: Path) -> List[dict]:

@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from bs4 import BeautifulSoup
 
-from .common import Event, extract_jsonld_events, normalize_space, parse_date, parse_age_range
+from .common import (
+    Event,
+    extract_jsonld_events,
+    normalize_space,
+    parse_age_ranges,
+    parse_date,
+    summarize_age_ranges,
+)
 from .http import get
 
 BASE = "https://www.artshouse.sg"
@@ -40,7 +47,8 @@ def fetch(max_events: int = 20) -> list[Event]:
         title_el = soup_ev.find("h1")
         date_el = soup_ev.find(string=lambda s: s and any(ch.isdigit() for ch in s))
         start = parse_date(date_el) if date_el else None
-        age_min, age_max = parse_age_range(page)
+        age_ranges = parse_age_ranges(page)
+        age_min, age_max = summarize_age_ranges(age_ranges)
         events.append(Event(
             title=normalize_space(title_el.get_text()) if title_el else "(Arts House event)",
             url=url,
@@ -48,6 +56,7 @@ def fetch(max_events: int = 20) -> list[Event]:
             start=start,
             age_min=age_min,
             age_max=age_max,
+            age_ranges=age_ranges or None,
             raw_date=normalize_space(date_el) if date_el else None,
         ))
     return events

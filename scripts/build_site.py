@@ -86,16 +86,46 @@ HTML_TEMPLATE = """<!doctype html>
     const events = __EVENTS_JSON__;
     const grid = document.getElementById('grid');
 
-    function bucket(ev) {
-      const lo = ev.age_min;
-      const hi = ev.age_max;
-      if (hi !== null && hi !== undefined && hi <= 5) return '0-5';
-      if (hi !== null && hi !== undefined && hi <= 12) return '6-12';
-      if (lo === null || lo === undefined) return 'all';
-      if (lo <= 5) return '0-5';
-      if (lo <= 12) return '6-12';
-      if (lo <= 17) return '13-17';
-      return 'all';
+    function eventRanges(ev) {
+      const ranges = [];
+      if (Array.isArray(ev.age_ranges) && ev.age_ranges.length > 0) {
+        ev.age_ranges.forEach(r => {
+          if (!Array.isArray(r) || r.length < 2) return;
+          const lo = r[0] === null || r[0] === undefined ? null : Number(r[0]);
+          const hi = r[1] === null || r[1] === undefined ? null : Number(r[1]);
+          ranges.push([Number.isNaN(lo) ? null : lo, Number.isNaN(hi) ? null : hi]);
+        });
+      } else if (ev.age_min !== null || ev.age_max !== null) {
+        ranges.push([ev.age_min ?? null, ev.age_max ?? null]);
+      }
+      return ranges;
+    }
+
+    function bucketOverlap(r, bucket) {
+      const bounds = { '0-5': [0, 5], '6-12': [6, 12], '13-17': [13, 17] }[bucket];
+      if (!bounds) return true;
+      const [bLo, bHi] = bounds;
+      const lo = r[0] === null || r[0] === undefined ? 0 : r[0];
+      const hi = r[1] === null || r[1] === undefined ? 99 : r[1];
+      return lo <= bHi && hi >= bLo;
+    }
+
+    function eventBuckets(ev) {
+      const ranges = eventRanges(ev);
+      if (ranges.length === 0) return [];
+      const buckets = ['0-5', '6-12', '13-17'].filter(b => ranges.some(r => bucketOverlap(r, b)));
+      return buckets;
+    }
+
+    function matchesFilter(ev, filterAge) {
+      if (filterAge === 'all') return true;
+      return eventBuckets(ev).includes(filterAge);
+    }
+
+    function bucketLabel(ev) {
+      const buckets = eventBuckets(ev);
+      if (buckets.length === 0) return 'age unknown';
+      return buckets.join('/');
     }
 
     function formatDate(iso) {
@@ -113,14 +143,14 @@ HTML_TEMPLATE = """<!doctype html>
 
     function render(filterAge = 'all') {
       grid.innerHTML = '';
-      const filtered = events.filter(ev => filterAge === 'all' || bucket(ev) === filterAge);
+      const filtered = events.filter(ev => matchesFilter(ev, filterAge));
       filtered.forEach(ev => {
           const card = document.createElement('div');
           card.className = 'card';
           card.innerHTML = `
             <div class=\"pill-row\">
               <span class=\"pill\">${ev.source}</span>
-              <span class=\"pill\">${bucket(ev)}</span>
+              <span class=\"pill\">${bucketLabel(ev)}</span>
             </div>
             <a class=\"title\" href=\"${ev.url}\" target=\"_blank\" rel=\"noopener\">${ev.title}</a>
             <div class=\"meta muted\">

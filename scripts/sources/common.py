@@ -62,6 +62,7 @@ class Event:
     price: Optional[str] = None
     age_min: Optional[int] = None
     age_max: Optional[int] = None
+    age_ranges: Optional[List[tuple[Optional[int], Optional[int]]]] = None
     categories: Optional[List[str]] = None
     image: Optional[str] = None
     raw_date: Optional[str] = None
@@ -103,29 +104,84 @@ def parse_date(text: str) -> Optional[datetime]:
         return None
 
 
-def parse_age_range(text: str) -> tuple[Optional[int], Optional[int]]:
-    if not text:
+def _normalize_age_range(lo: Optional[int], hi: Optional[int]) -> tuple[Optional[int], Optional[int]]:
+    if lo is not None and lo > 17:
         return None, None
+    if hi is not None:
+        if hi < 0:
+            return None, None
+        hi = min(hi, 17)
+    if lo is not None and hi is not None and lo > hi:
+        lo, hi = hi, lo
+    return lo, hi
+
+
+def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
+    if not text:
+        return []
+    text_blob = clean_text(text).lower()
+    if not text_blob:
+        return []
+
+    candidates: List[tuple[Optional[int], Optional[int], int]] = []
     patterns = [
-        r"ages?\s*(\d{1,2})\s*[–-]\s*(\d{1,2})",
-        r"(\d{1,2})\s*to\s*(\d{1,2})\s*years",
-        r"(\d{1,2})\+",
-        r"for\s*children\s*aged?\s*(\d{1,2})\s*and\s*above",
+        # Highest confidence: explicit recommended-age labels.
+        (3, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})", "range"),
+        (3, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(?:\+|and\s*above)", "plus"),
+        # Medium confidence: suitable-for / ages labels.
+        (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})(?:\s*years?(?:\s*old)?)?", "range"),
+        (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(?:\+|and\s*above)", "plus"),
+        # Lower confidence: unlabeled age statements.
+        (1, r"\b(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})\s*years?(?:\s*old)?\b", "range"),
+        (1, r"\b(\d{1,2})\s*(?:\+|and\s*above)\s*years?(?:\s*old)?\b", "plus"),
+        (1, r"\b(?:under|below)\s*(\d{1,2})\s*years?(?:\s*old)?\b", "under"),
     ]
-    for pat in patterns:
-        m = re.search(pat, text, flags=re.IGNORECASE)
-        if m:
-            if len(m.groups()) == 2:
-                lo, hi = int(m.group(1)), int(m.group(2))
-                if lo > 17:
-                    return None, None
-                return lo, min(hi, 17)
-            if len(m.groups()) == 1:
-                lo = int(m.group(1))
-                if lo > 17:
-                    return None, None
-                return lo, None
-    return None, None
+
+    for priority, pattern, kind in patterns:
+        for match in re.finditer(pattern, text_blob, flags=re.IGNORECASE):
+            if kind == "range":
+                lo, hi = int(match.group(1)), int(match.group(2))
+            elif kind == "plus":
+                lo, hi = int(match.group(1)), None
+            else:  # "under"
+                lo, hi = None, int(match.group(1)) - 1
+            lo, hi = _normalize_age_range(lo, hi)
+            if lo is None and hi is None:
+                continue
+            candidates.append((lo, hi, priority))
+
+    if not candidates:
+        return []
+
+    max_priority = max(p for _, _, p in candidates)
+    picked = [(lo, hi) for lo, hi, p in candidates if p == max_priority]
+    # Deduplicate while preserving order.
+    seen = set()
+    out: List[tuple[Optional[int], Optional[int]]] = []
+    for lo, hi in picked:
+        key = (lo, hi)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
+def parse_age_range(text: str) -> tuple[Optional[int], Optional[int]]:
+    ranges = parse_age_ranges(text)
+    return summarize_age_ranges(ranges)
+
+
+def summarize_age_ranges(
+    ranges: List[tuple[Optional[int], Optional[int]]],
+) -> tuple[Optional[int], Optional[int]]:
+    if not ranges:
+        return None, None
+    mins = [lo for lo, _ in ranges if lo is not None]
+    maxes = [hi for _, hi in ranges if hi is not None]
+    age_min = min(mins) if mins else None
+    age_max = None if any(hi is None for _, hi in ranges) else (max(maxes) if maxes else None)
+    return age_min, age_max
 
 
 def age_bucket(age_min: Optional[int], age_max: Optional[int]) -> str:
@@ -169,7 +225,12 @@ def is_probable_event(event: Event) -> bool:
     return True
 
 
-def extract_jsonld_events(html: str, source: str, page_url: Optional[str] = None) -> List[Event]:
+def extract_jsonld_events(
+    html: str,
+    source: str,
+    page_url: Optional[str] = None,
+    fallback_age_text: Optional[str] = None,
+) -> List[Event]:
     soup = BeautifulSoup(html, "lxml")
     events: List[Event] = []
     for script in soup.find_all("script", type="application/ld+json"):
@@ -196,7 +257,10 @@ def extract_jsonld_events(html: str, source: str, page_url: Optional[str] = None
             loc = item.get("location")
             if isinstance(loc, dict):
                 venue = loc.get("name")
-            age_min, age_max = parse_age_range(json.dumps(item))
+            age_ranges = parse_age_ranges(json.dumps(item))
+            if not age_ranges and fallback_age_text:
+                age_ranges = parse_age_ranges(fallback_age_text)
+            age_min, age_max = summarize_age_ranges(age_ranges)
             events.append(Event(
                 title=normalize_space(title),
                 url=url,
@@ -207,6 +271,7 @@ def extract_jsonld_events(html: str, source: str, page_url: Optional[str] = None
                 price=price,
                 age_min=age_min,
                 age_max=age_max,
+                age_ranges=age_ranges or None,
                 image=image,
             ))
     return events

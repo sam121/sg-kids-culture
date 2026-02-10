@@ -317,9 +317,10 @@ HTML_TEMPLATE = """<!doctype html>
       if (!select) return;
       const keys = allMonthKeys(events);
       const current = currentMonthKey();
+      const upcomingKeys = current ? keys.filter(k => k >= current) : keys;
       const opts = [{ value: 'all', label: 'All upcoming' }];
       if (current) opts.push({ value: current, label: `This month (${monthLabel(current)})` });
-      keys.forEach(key => {
+      upcomingKeys.forEach(key => {
         if (!opts.some(o => o.value === key)) {
           opts.push({ value: key, label: monthLabel(key) });
         }
@@ -369,7 +370,10 @@ HTML_TEMPLATE = """<!doctype html>
       });
       const countEl = document.getElementById('result-count');
       if (countEl) {
-        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown`;
+        const monthText = filterMonth === 'all' ? 'All upcoming' : monthLabel(filterMonth);
+        const ageText = filterAge === 'all' ? 'All ages' : filterAge;
+        const categoryText = filterCategory === 'all' ? 'All categories' : filterCategory;
+        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText}`;
       }
     }
 

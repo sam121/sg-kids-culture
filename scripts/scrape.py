@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import List
 
-from sources import artshouse, esplanade, gallery, nhb, sco, sso
+from sources import artshouse, cultural_centres, esplanade, gallery, nhb, sco, sso
 from sources.common import Event, dedupe, is_probable_event, is_upcoming_event, sort_events
 
 SOURCES = [
@@ -14,6 +14,7 @@ SOURCES = [
     artshouse,
     gallery,
     nhb,
+    cultural_centres,
 ]
 
 

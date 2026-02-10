@@ -11,6 +11,23 @@ SG_TZ = pytz.timezone("Asia/Singapore")
 SITE_TITLE = "Singapore Kids Culture Weekly"
 SITE_DESC = "Kid-friendly cultural events in Singapore: theatre, music, dance, museums."
 BASE_URL = "https://sam121.github.io/sg-kids-culture/"
+SOURCE_LABELS = {
+    "esplanade": "Esplanade",
+    "sso": "SSO",
+    "sco": "SCO",
+    "artshouse": "Arts House Group",
+    "gallery": "National Gallery",
+    "nhb": "NHB Museums",
+    "sam": "Singapore Art Museum",
+    "artscience": "ArtScience Museum",
+    "peranakan": "Peranakan Museum",
+    "ihc": "Indian Heritage Centre",
+    "childrensmuseum": "Children's Museum Singapore",
+    "changi": "Changi Chapel & Museum",
+    "bukitchandu": "Reflections at Bukit Chandu",
+    "sccc": "Singapore Chinese Cultural Centre",
+    "gateway": "Gateway Theatre",
+}
 
 
 HTML_TEMPLATE = """<!doctype html>
@@ -48,6 +65,8 @@ HTML_TEMPLATE = """<!doctype html>
     .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
     .filter-groups { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
     .filter-group .muted { font-size: 13px; }
+    .month-select { border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; padding: 8px 12px; border-radius: 10px; font-weight: 600; }
+    .month-select option { color: #111827; }
     .filter-btn { border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; }
     .filter-btn.active { background: var(--accent); color: #0b1021; border-color: var(--accent); }
     .count { margin-top: 8px; }
@@ -89,6 +108,13 @@ HTML_TEMPLATE = """<!doctype html>
           <button class=\"filter-btn\" data-category=\"Exhibition\">Exhibition</button>
         </div>
       </div>
+      <div class=\"filter-group\">
+        <div class=\"muted\">Month</div>
+        <div class=\"filters\" id=\"month-filters\">
+          <select id=\"month-select\" class=\"month-select\"></select>
+          <button class=\"filter-btn\" id=\"month-this\">This month</button>
+        </div>
+      </div>
     </div>
     <div id=\"result-count\" class=\"muted count\"></div>
 
@@ -100,7 +126,7 @@ HTML_TEMPLATE = """<!doctype html>
     <div id=\"grid\" class=\"grid\"></div>
 
     <footer>
-      <div>Generated automatically. Sources: Esplanade, SSO, SCO, Arts House, National Gallery, NMS/ACM.</div>
+      <div>Generated automatically. Sources: __SOURCE_SUMMARY__.</div>
     </footer>
   </div>
   <script>
@@ -127,6 +153,70 @@ HTML_TEMPLATE = """<!doctype html>
       return ev.categories.filter(Boolean);
     }
 
+    function parseDateSafe(iso) {
+      if (!iso) return null;
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    function monthPartsFromDate(date) {
+      const parts = new Intl.DateTimeFormat('en-SG', {
+        timeZone: 'Asia/Singapore',
+        year: 'numeric',
+        month: '2-digit',
+      }).formatToParts(date);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      return { year, month };
+    }
+
+    function monthKeyFromDate(date) {
+      const { year, month } = monthPartsFromDate(date);
+      if (!year || !month) return null;
+      return `${year}-${month}`;
+    }
+
+    function monthLabel(key) {
+      const [yy, mm] = key.split('-').map(Number);
+      if (!yy || !mm) return key;
+      const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${names[mm - 1]} ${yy}`;
+    }
+
+    function nextMonthKey(key) {
+      const [yy, mm] = key.split('-').map(Number);
+      if (!yy || !mm) return key;
+      const month = mm === 12 ? 1 : mm + 1;
+      const year = mm === 12 ? yy + 1 : yy;
+      return `${year}-${String(month).padStart(2, '0')}`;
+    }
+
+    function eventMonthSpan(ev) {
+      const start = parseDateSafe(ev.start);
+      const end = parseDateSafe(ev.end);
+      if (!start && !end) return null;
+      const startKey = monthKeyFromDate(start || end);
+      const endKey = monthKeyFromDate(end || start);
+      if (!startKey || !endKey) return null;
+      return startKey <= endKey ? [startKey, endKey] : [endKey, startKey];
+    }
+
+    function allMonthKeys(events) {
+      const set = new Set();
+      events.forEach(ev => {
+        const span = eventMonthSpan(ev);
+        if (!span) return;
+        let key = span[0];
+        while (key <= span[1]) {
+          set.add(key);
+          const nxt = nextMonthKey(key);
+          if (nxt === key) break;
+          key = nxt;
+        }
+      });
+      return Array.from(set).sort();
+    }
+
     function bucketOverlap(r, bucket) {
       const bounds = { '0-5': [0, 5], '6-12': [6, 12], '13-17': [13, 17] }[bucket];
       if (!bounds) return true;
@@ -143,9 +233,14 @@ HTML_TEMPLATE = """<!doctype html>
       return buckets;
     }
 
-    function matchesFilter(ev, filterAge, filterCategory) {
+    function matchesFilter(ev, filterAge, filterCategory, filterMonth) {
       if (filterAge !== 'all' && !eventBuckets(ev).includes(filterAge)) return false;
       if (filterCategory !== 'all' && !eventCategories(ev).includes(filterCategory)) return false;
+      if (filterMonth !== 'all') {
+        const span = eventMonthSpan(ev);
+        if (!span) return false;
+        if (filterMonth < span[0] || filterMonth > span[1]) return false;
+      }
       return true;
     }
 
@@ -155,22 +250,104 @@ HTML_TEMPLATE = """<!doctype html>
       return buckets.join('/');
     }
 
-    function formatDate(iso) {
-      if (!iso) return 'Date TBC';
-      const d = new Date(iso);
-      return d.toLocaleString('en-SG', {
+    function sameDayInSingapore(left, right) {
+      const l = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).format(left);
+      const r = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).format(right);
+      return l === r;
+    }
+
+    function isMidnightInSingapore(date) {
+      const parts = new Intl.DateTimeFormat('en-SG', {
         timeZone: 'Asia/Singapore',
-        weekday: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(date);
+      const hh = parts.find(p => p.type === 'hour')?.value;
+      const mm = parts.find(p => p.type === 'minute')?.value;
+      return hh === '00' && mm === '00';
+    }
+
+    function formatDateOnly(date) {
+      return date.toLocaleDateString('en-SG', {
+        timeZone: 'Asia/Singapore',
         day: 'numeric',
         month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: 'numeric',
       });
     }
 
-    function render(filterAge = 'all', filterCategory = 'all') {
+    function formatDateTime(date) {
+      return date.toLocaleString('en-SG', {
+        timeZone: 'Asia/Singapore',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+
+    function formatDateLabel(ev) {
+      const start = parseDateSafe(ev.start);
+      const end = parseDateSafe(ev.end);
+      if (start && end) {
+        if (sameDayInSingapore(start, end)) {
+          return `On ${isMidnightInSingapore(start) ? formatDateOnly(start) : formatDateTime(start)}`;
+        }
+        const left = isMidnightInSingapore(start) ? formatDateOnly(start) : formatDateTime(start);
+        const right = isMidnightInSingapore(end) ? formatDateOnly(end) : formatDateTime(end);
+        return `Runs ${left} to ${right}`;
+      }
+      if (start) {
+        return `From ${isMidnightInSingapore(start) ? formatDateOnly(start) : formatDateTime(start)}`;
+      }
+      if (typeof ev.raw_date === 'string' && ev.raw_date.trim()) {
+        return `Dates: ${ev.raw_date.trim()}`;
+      }
+      return 'Date TBC';
+    }
+
+    function currentMonthKey() {
+      return monthKeyFromDate(new Date());
+    }
+
+    function setupMonthFilter() {
+      const select = document.getElementById('month-select');
+      if (!select) return;
+      const keys = allMonthKeys(events);
+      const current = currentMonthKey();
+      const opts = [{ value: 'all', label: 'All upcoming' }];
+      if (current) opts.push({ value: current, label: `This month (${monthLabel(current)})` });
+      keys.forEach(key => {
+        if (!opts.some(o => o.value === key)) {
+          opts.push({ value: key, label: monthLabel(key) });
+        }
+      });
+      select.innerHTML = opts.map(o => `<option value=\"${o.value}\">${o.label}</option>`).join('');
+      state.month = current && opts.some(o => o.value === current) ? current : 'all';
+      select.value = state.month;
+      select.addEventListener('change', () => {
+        state.month = select.value;
+        render(state.age, state.category, state.month);
+      });
+
+      const thisBtn = document.getElementById('month-this');
+      if (thisBtn) {
+        thisBtn.addEventListener('click', () => {
+          const nowKey = currentMonthKey();
+          if (nowKey && Array.from(select.options).some(o => o.value === nowKey)) {
+            select.value = nowKey;
+            state.month = nowKey;
+            render(state.age, state.category, state.month);
+          }
+        });
+      }
+    }
+
+    function render(filterAge = 'all', filterCategory = 'all', filterMonth = 'all') {
       grid.innerHTML = '';
-      const filtered = events.filter(ev => matchesFilter(ev, filterAge, filterCategory));
+      const filtered = events.filter(ev => matchesFilter(ev, filterAge, filterCategory, filterMonth));
       filtered.forEach(ev => {
           const card = document.createElement('div');
           card.className = 'card';
@@ -183,7 +360,7 @@ HTML_TEMPLATE = """<!doctype html>
             </div>
             <a class=\"title\" href=\"${ev.url}\" target=\"_blank\" rel=\"noopener\">${ev.title}</a>
             <div class=\"meta muted\">
-              <span>${formatDate(ev.start)}</span>
+              <span>${formatDateLabel(ev)}</span>
               ${ev.venue ? `<span>${ev.venue}</span>` : ''}
               ${ev.price ? `<span>${ev.price}</span>` : ''}
             </div>
@@ -196,14 +373,14 @@ HTML_TEMPLATE = """<!doctype html>
       }
     }
 
-    const state = { age: 'all', category: 'all' };
+    const state = { age: 'all', category: 'all', month: 'all' };
 
     document.querySelectorAll('#age-filters .filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#age-filters .filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.age = btn.dataset.age;
-        render(state.age, state.category);
+        render(state.age, state.category, state.month);
       });
     });
 
@@ -212,11 +389,12 @@ HTML_TEMPLATE = """<!doctype html>
         document.querySelectorAll('#category-filters .filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.category = btn.dataset.category;
-        render(state.age, state.category);
+        render(state.age, state.category, state.month);
       });
     });
 
-    render(state.age, state.category);
+    setupMonthFilter();
+    render(state.age, state.category, state.month);
   </script>
 </body>
 </html>
@@ -226,6 +404,16 @@ HTML_TEMPLATE = """<!doctype html>
 def load_events(path: Path) -> List[dict]:
     with path.open() as f:
         return json.load(f)
+
+
+def source_summary(events: List[dict]) -> str:
+    seen: list[str] = []
+    for ev in events:
+        src = (ev.get("source") or "").strip().lower()
+        if src and src not in seen:
+            seen.append(src)
+    labels = [SOURCE_LABELS.get(src, src.title()) for src in seen]
+    return ", ".join(labels) if labels else "No sources"
 
 
 def render_html(events: List[dict]) -> str:
@@ -238,6 +426,7 @@ def render_html(events: List[dict]) -> str:
     )
     return (
         HTML_TEMPLATE.replace("__SITE_TITLE__", SITE_TITLE)
+        .replace("__SOURCE_SUMMARY__", source_summary(events))
         .replace("__EVENTS_JSON__", events_json)
     )
 

@@ -29,6 +29,8 @@ BLOCKED_TITLE_TERMS = {
     "free programmes",
     "collaborations",
     "playtime!",
+    "whats on",
+    "what's on",
 }
 
 BLOCKED_URL_TERMS = [
@@ -39,6 +41,7 @@ BLOCKED_URL_TERMS = [
     "/visitor-information/",
     "/museum-map",
     "/view-all",
+    "/whats-on/overview",
 ]
 
 BLOCKED_URL_PATHS = {
@@ -78,6 +81,15 @@ SOURCE_DEFAULT_CATEGORIES = {
     "sco": ["Orchestra", "Music"],
     "gallery": ["Exhibition"],
     "nhb": ["Exhibition"],
+    "sam": ["Exhibition"],
+    "artscience": ["Exhibition"],
+    "peranakan": ["Exhibition"],
+    "ihc": ["Exhibition"],
+    "childrensmuseum": ["Exhibition"],
+    "changi": ["Exhibition"],
+    "bukitchandu": ["Exhibition"],
+    "sccc": ["Music", "Workshop"],
+    "gateway": ["Theatre"],
 }
 
 @dataclass
@@ -310,8 +322,19 @@ def is_probable_event(event: Event) -> bool:
         return False
     if "category=" in (parsed.query or "").lower():
         return False
-    # Keep to known event-like paths for this first pass.
-    if "/whats-on/" not in path and "/events/" not in path and "/concert" not in path:
+    event_path_hints = (
+        "/whats-on/",
+        "/events/",
+        "/event/",
+        "/concert",
+        "/programme",
+        "/programmes",
+        "/performance",
+        "/festival",
+        "/exhibition",
+        "/show",
+    )
+    if not any(hint in path for hint in event_path_hints):
         return False
     # Must have at least one hint of timing or age relevance.
     if not event.start and event.age_min is None and event.age_max is None:

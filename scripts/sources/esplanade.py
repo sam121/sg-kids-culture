@@ -168,12 +168,26 @@ def fetch(max_events: int = 40) -> list[Event]:
             # Fallback: minimal extraction from page header
             soup_ev = BeautifulSoup(page, "lxml")
             title_el = soup_ev.find("h1")
-            date_el = soup_ev.find(string=lambda s: s and "202" in s)
+            date_pattern = re.compile(
+                r"\b\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}\b|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s*(?:/|,|\s+\d)",
+                flags=re.IGNORECASE,
+            )
+            date_text = None
+            for tag in soup_ev.find_all(["time", "p", "div", "span", "li", "h3", "h4"]):
+                text = normalize_space(tag.get_text(" ", strip=True))
+                if not text or len(text) > 140:
+                    continue
+                low = text.lower()
+                if "window.datalayer" in low or "copyright" in low or "last updated" in low:
+                    continue
+                if date_pattern.search(text):
+                    date_text = text
+                    break
             page_category = ""
             page_category_meta = soup_ev.find("meta", attrs={"name": "pageCategory"})
             if page_category_meta:
                 page_category = page_category_meta.get("content") or ""
-            start = parse_date(date_el) if date_el else None
+            start = parse_date(date_text) if date_text else None
             age_ranges = parse_age_ranges(page)
             age_min, age_max = summarize_age_ranges(age_ranges)
             title = normalize_space(title_el.get_text()) if title_el else "(Esplanade event)"
@@ -191,6 +205,6 @@ def fetch(max_events: int = 40) -> list[Event]:
                     source="esplanade",
                     text_blob=page_category,
                 ) or None,
-                raw_date=normalize_space(date_el) if date_el else None,
+                raw_date=date_text,
             ))
     return events

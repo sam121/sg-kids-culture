@@ -101,18 +101,13 @@ HTML_TEMPLATE = """<!doctype html>
     .nav { display: flex; gap: 14px; flex-wrap: wrap; }
     .nav a { color: var(--muted); text-decoration: none; font-weight: 600; }
     .nav a:hover { color: var(--ink); }
-    .hero { margin-top: 18px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; align-items: stretch; }
+    .hero { margin-top: 18px; display: grid; grid-template-columns: 1fr; gap: 14px; align-items: stretch; }
     .hero-card { background: linear-gradient(145deg, #fffef8 0%, #f5f7fb 100%); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 20px; }
     h1 { margin: 0; font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 42px); line-height: 1.1; letter-spacing: -0.4px; }
     .subtitle { margin-top: 10px; color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 70ch; }
     .hero-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
     .hero-links a { border-radius: 999px; border: 1px solid var(--line); padding: 8px 12px; text-decoration: none; color: var(--ink); font-weight: 600; background: #fff; }
     .hero-links a.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .stats { display: grid; grid-template-columns: 1fr; gap: 10px; }
-    .stat { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 12px; }
-    .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .stat .value { margin-top: 6px; font-size: 24px; font-weight: 700; line-height: 1.1; }
-    .stat .tiny { margin-top: 4px; color: var(--muted); font-size: 12px; }
     .muted { color: var(--muted); font-size: 14px; line-height: 1.5; }
     .intro-block { margin-top: 14px; background: rgba(255, 255, 255, 0.65); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
     .panel { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.72); }
@@ -121,6 +116,13 @@ HTML_TEMPLATE = """<!doctype html>
     .mini-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
     .mini-title { margin: 0; font-weight: 700; font-size: 15px; color: var(--ink); text-decoration: none; }
     .mini-meta { margin-top: 6px; color: var(--muted); font-size: 13px; }
+    .notes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .notes-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
+    .notes-title { font-weight: 700; margin: 0; }
+    .notes-sub { margin-top: 4px; color: var(--muted); font-size: 13px; }
+    .notes-list { margin: 10px 0 0; padding-left: 18px; color: var(--muted); }
+    .notes-list li { margin-top: 7px; line-height: 1.4; }
+    .notes-list a { color: var(--ink); font-weight: 600; }
     .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
     .filter-tabs { display: flex; gap: 10px; margin-top: 6px; margin-bottom: 10px; }
     .filter-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 2px; }
@@ -158,6 +160,7 @@ HTML_TEMPLATE = """<!doctype html>
     footer { margin-top: 32px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
     @media (max-width: 980px) {
       .hero { grid-template-columns: 1fr; }
+      .notes-grid { grid-template-columns: 1fr; }
       .filter-groups { grid-template-columns: 1fr; }
       .calendar-grid td { min-height: 108px; height: 108px; }
     }
@@ -184,15 +187,7 @@ HTML_TEMPLATE = """<!doctype html>
           <a href=\"rss.xml\">Subscribe via RSS</a>
         </div>
         <div class=\"intro-block muted\">
-          Tracking: __SCRAPED_PLACES__.<br />
-          This run includes events from: __SOURCE_SUMMARY__.
-        </div>
-      </div>
-      <div class=\"hero-card\">
-        <div class=\"stats\">
-          <div class=\"stat\"><div class=\"label\">Upcoming</div><div class=\"value\" id=\"stat-upcoming\">0</div></div>
-          <div class=\"stat\"><div class=\"label\">Sources</div><div class=\"value\" id=\"stat-sources\">0</div></div>
-          <div class=\"stat\"><div class=\"label\">Last Build</div><div class=\"tiny\">__UPDATED_AT__</div></div>
+          Try `Main filters` for age/month/price, and `Places` when you want to zoom in by venue area or organiser.
         </div>
       </div>
     </section>
@@ -203,10 +198,27 @@ HTML_TEMPLATE = """<!doctype html>
       <div id=\"featured-empty\" class=\"muted hidden\">No events with clear dates in this week window.</div>
     </section>
 
+    <section class=\"panel\" id=\"curator-notes\">
+      <div class=\"panel-title\">Curator Notes</div>
+      <div class=\"notes-grid\">
+        <article class=\"notes-card\">
+          <h3 class=\"notes-title\">Top Picks This Week</h3>
+          <div class=\"notes-sub\">A quick LLM-style shortlist for the next 7 days.</div>
+          <ul id=\"notes-week\" class=\"notes-list\"></ul>
+        </article>
+        <article class=\"notes-card\">
+          <h3 class=\"notes-title\">Fun In The Next 30 Days</h3>
+          <div class=\"notes-sub\">Things people will likely want to bookmark early.</div>
+          <ul id=\"notes-month\" class=\"notes-list\"></ul>
+        </article>
+      </div>
+    </section>
+
     <div class=\"panel\" id=\"filters\">
       <div class=\"filter-tabs\" id=\"filter-tabs\">
         <button class=\"filter-btn active\" data-tab=\"main\">Main filters</button>
         <button class=\"filter-btn\" data-tab=\"places\">Places</button>
+        <button class=\"filter-btn\" data-tab=\"coverage\">Coverage</button>
       </div>
       <div class=\"filter-groups\" id=\"filter-main\">
         <div class=\"filter-group\">
@@ -269,6 +281,16 @@ HTML_TEMPLATE = """<!doctype html>
           </div>
         </div>
       </div>
+      <div class=\"filter-groups hidden\" id=\"filter-coverage\">
+        <div class=\"filter-group\">
+          <div class=\"muted\">Configured Sources</div>
+          <div class=\"muted\">__SCRAPED_PLACES__</div>
+        </div>
+        <div class=\"filter-group\">
+          <div class=\"muted\">Sources In This Run</div>
+          <div class=\"muted\">__SOURCE_SUMMARY__</div>
+        </div>
+      </div>
       <div id=\"result-count\" class=\"muted count\"></div>
     </div>
 
@@ -281,7 +303,7 @@ HTML_TEMPLATE = """<!doctype html>
     <div id=\"calendar-view\" class=\"calendar-view hidden\"></div>
 
     <footer>
-      <div>Generated automatically from public pages. Sources in this run: __SOURCE_SUMMARY__.</div>
+      <div>Generated automatically from public pages.</div>
     </footer>
   </div>
 
@@ -598,6 +620,7 @@ HTML_TEMPLATE = """<!doctype html>
       const tabButtons = document.querySelectorAll('#filter-tabs .filter-btn');
       const main = document.getElementById('filter-main');
       const places = document.getElementById('filter-places');
+      const coverage = document.getElementById('filter-coverage');
       tabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
           tabButtons.forEach(b => b.classList.remove('active'));
@@ -606,6 +629,7 @@ HTML_TEMPLATE = """<!doctype html>
           state.activeTab = tab;
           if (main) main.classList.toggle('hidden', tab !== 'main');
           if (places) places.classList.toggle('hidden', tab !== 'places');
+          if (coverage) coverage.classList.toggle('hidden', tab !== 'coverage');
         });
       });
     }
@@ -643,20 +667,6 @@ HTML_TEMPLATE = """<!doctype html>
           renderAll();
         });
       });
-    }
-
-    function setupStats() {
-      const today = sgDateKey(new Date());
-      const upcoming = events.filter(ev => {
-        const span = eventDateSpan(ev);
-        if (!span) return true;
-        return span[1] >= today;
-      }).length;
-      const srcCount = new Set(events.map(e => (e.source || '').toLowerCase()).filter(Boolean)).size;
-      const upcomingEl = document.getElementById('stat-upcoming');
-      const srcEl = document.getElementById('stat-sources');
-      if (upcomingEl) upcomingEl.textContent = String(upcoming);
-      if (srcEl) srcEl.textContent = String(srcCount);
     }
 
     function weekWindowInSg() {
@@ -702,6 +712,80 @@ HTML_TEMPLATE = """<!doctype html>
           `;
         })
         .join('');
+    }
+
+    function inWindow(ev, startKey, endKey) {
+      const span = eventDateSpan(ev);
+      if (!span) return false;
+      return span[0] <= endKey && span[1] >= startKey;
+    }
+
+    function eventCuratorScore(ev, windowDays) {
+      let score = 0;
+      const categories = eventCategories(ev);
+      const minPrice = eventMinPrice(ev);
+      if (categories.includes('Theatre')) score += 3;
+      if (categories.includes('Music')) score += 2;
+      if (categories.includes('Dance')) score += 2;
+      if (categories.includes('Orchestra')) score += 2;
+      if (categories.includes('Workshop')) score += 1;
+      if (categories.includes('Exhibition')) score += 1;
+      if (minPrice === 0) score += 2;
+      if (bucketLabel(ev) === 'all ages') score += 2;
+      if (bucketLabel(ev) === '0-12') score += 1;
+      if (!ev.start && ev.raw_date) score -= 1;
+      const d = parseDateSafe(ev.start);
+      if (d) {
+        const key = sgDateKey(d);
+        const today = sgDateKey(new Date());
+        if (today && key && key >= today) {
+          const dayOffset = Math.max(0, Math.floor((keyToUtcDate(key) - keyToUtcDate(today)) / (1000 * 60 * 60 * 24)));
+          score += Math.max(0, windowDays - dayOffset);
+        }
+      }
+      return score;
+    }
+
+    function noteLine(ev) {
+      const bits = [];
+      const categories = eventCategories(ev);
+      const minPrice = eventMinPrice(ev);
+      if (categories.length) bits.push(categories.slice(0, 2).join(' + '));
+      const age = bucketLabel(ev);
+      if (age && age !== 'age unknown') bits.push(age);
+      if (minPrice === 0) bits.push('free');
+      const why = bits.length ? bits.join(' · ') : sourceLabel(ev.source);
+      return `${formatDateLabel(ev)} · ${why}`;
+    }
+
+    function fillNotesList(elId, rows, maxCount) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (!rows.length) {
+        el.innerHTML = '<li>No clear picks in this window yet.</li>';
+        return;
+      }
+      el.innerHTML = rows.slice(0, maxCount).map(ev => {
+        const href = eventHref(ev);
+        return `<li><a href=\"${escapeHtml(href)}\">${escapeHtml(ev.title || 'Untitled Event')}</a><br />${escapeHtml(noteLine(ev))}</li>`;
+      }).join('');
+    }
+
+    function renderCuratorNotes() {
+      const today = sgDateKey(new Date());
+      if (!today) return;
+      const weekEnd = addDaysKey(today, 6);
+      const monthEnd = addDaysKey(today, 30);
+
+      const weekly = events
+        .filter(ev => inWindow(ev, today, weekEnd))
+        .sort((a, b) => eventCuratorScore(b, 7) - eventCuratorScore(a, 7) || eventSort(a, b));
+      const month = events
+        .filter(ev => inWindow(ev, today, monthEnd))
+        .sort((a, b) => eventCuratorScore(b, 30) - eventCuratorScore(a, 30) || eventSort(a, b));
+
+      fillNotesList('notes-week', weekly, 5);
+      fillNotesList('notes-month', month, 7);
     }
 
     function renderCards(rows) {
@@ -863,8 +947,8 @@ HTML_TEMPLATE = """<!doctype html>
     setupPriceFilters();
     setupViewToggle();
     setupFilterTabs();
-    setupStats();
     renderFeatured();
+    renderCuratorNotes();
     renderAll();
   </script>
 </body>

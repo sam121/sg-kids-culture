@@ -29,6 +29,24 @@ SOURCE_LABELS = {
     "gateway": "Gateway Theatre",
 }
 
+SCRAPED_PLACE_ORDER = [
+    "esplanade",
+    "sso",
+    "sco",
+    "artshouse",
+    "gallery",
+    "nhb",
+    "sam",
+    "artscience",
+    "peranakan",
+    "ihc",
+    "childrensmuseum",
+    "bukitchandu",
+    "sccc",
+    "gateway",
+    "changi",
+]
+
 
 HTML_TEMPLATE = """<!doctype html>
 <html lang=\"en\">
@@ -54,6 +72,7 @@ HTML_TEMPLATE = """<!doctype html>
     header { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
     h1 { margin: 0; font-size: 32px; letter-spacing: -0.5px; }
     .muted { color: var(--muted); font-size: 15px; line-height: 1.6; }
+    .intro { margin-top: 4px; font-size: 14px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
     .card { background: var(--card); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 16px 16px 18px; backdrop-filter: blur(4px); display: flex; flex-direction: column; gap: 10px; }
     .title { font-weight: 700; font-size: 18px; margin: 0; color: #fff; }
@@ -80,6 +99,8 @@ HTML_TEMPLATE = """<!doctype html>
       <div>
         <h1>__SITE_TITLE__</h1>
         <div class=\"muted\">Weekly picks for ages 0-5, 6-12, 13-17. Updated Mondays 9:00 AM SGT.</div>
+        <div class=\"muted intro\">Tracking: __SCRAPED_PLACES__.</div>
+        <div class=\"muted intro\">This run includes events from: __SOURCE_SUMMARY__.</div>
       </div>
       <div class=\"muted\"><a href=\"rss.xml\">RSS</a></div>
     </header>
@@ -420,6 +441,11 @@ def source_summary(events: List[dict]) -> str:
     return ", ".join(labels) if labels else "No sources"
 
 
+def scraped_places_summary() -> str:
+    labels = [SOURCE_LABELS.get(src, src.title()) for src in SCRAPED_PLACE_ORDER]
+    return ", ".join(labels)
+
+
 def render_html(events: List[dict]) -> str:
     # Escape HTML-significant characters to avoid accidentally closing script tags.
     events_json = (
@@ -430,6 +456,7 @@ def render_html(events: List[dict]) -> str:
     )
     return (
         HTML_TEMPLATE.replace("__SITE_TITLE__", SITE_TITLE)
+        .replace("__SCRAPED_PLACES__", scraped_places_summary())
         .replace("__SOURCE_SUMMARY__", source_summary(events))
         .replace("__EVENTS_JSON__", events_json)
     )

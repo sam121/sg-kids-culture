@@ -692,7 +692,7 @@ HTML_TEMPLATE = """<!doctype html>
         return;
       }
       const [year, month] = monthKey.split('-').map(Number);
-      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate;
+      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
       const first = new Date(Date.UTC(year, month - 1, 1));
       const firstDowMonday = (first.getUTCDay() + 6) % 7;
       const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;

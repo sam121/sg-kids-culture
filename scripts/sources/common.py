@@ -187,12 +187,16 @@ def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
         # Highest confidence: explicit unit-based recommended ages (months/years).
         (4, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(months?|years?)\s*(?:to|[–-])\s*(\d{1,2})\s*(months?|years?)", "range_with_unit"),
         (4, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(months?|years?)\s*(?:\+|and\s*above)", "plus_with_unit"),
+        (4, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})\s*(months?|years?)", "range_with_trailing_unit"),
+        (4, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(?:\+|and\s*above)\s*(months?|years?)", "plus_with_trailing_unit"),
         # Highest confidence: explicit recommended-age labels.
         (3, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})", "range"),
         (3, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(?:\+|and\s*above)", "plus"),
         # Medium confidence: suitable-for / ages labels.
         (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(months?|years?)\s*(?:to|[–-])\s*(\d{1,2})\s*(months?|years?)", "range_with_unit"),
         (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(months?|years?)\s*(?:\+|and\s*above)", "plus_with_unit"),
+        (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})\s*(months?|years?)", "range_with_trailing_unit"),
+        (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(?:\+|and\s*above)\s*(months?|years?)", "plus_with_trailing_unit"),
         (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})(?:\s*years?(?:\s*old)?)?", "range"),
         (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(?:\+|and\s*above)", "plus"),
         # Lower confidence: unlabeled age statements.
@@ -214,6 +218,14 @@ def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
             elif kind == "plus_with_unit":
                 lo_val, lo_unit = int(match.group(1)), match.group(2)
                 lo, hi = _to_years(lo_val, lo_unit, round_up=False), None
+            elif kind == "range_with_trailing_unit":
+                lo_val, hi_val = int(match.group(1)), int(match.group(2))
+                unit = match.group(3)
+                lo = _to_years(lo_val, unit, round_up=False)
+                hi = _to_years(hi_val, unit, round_up=True)
+            elif kind == "plus_with_trailing_unit":
+                lo_val, unit = int(match.group(1)), match.group(2)
+                lo, hi = _to_years(lo_val, unit, round_up=False), None
             else:
                 continue
             lo, hi = _normalize_age_range(lo, hi)

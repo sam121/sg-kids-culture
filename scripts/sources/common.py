@@ -83,6 +83,7 @@ SOURCE_DEFAULT_CATEGORIES = {
     "nhb": ["Exhibition"],
     "sam": ["Exhibition"],
     "artscience": ["Exhibition"],
+    "sandstheatre": ["Theatre", "Music"],
     "peranakan": ["Exhibition"],
     "ihc": ["Exhibition"],
     "childrensmuseum": ["Exhibition"],
@@ -165,6 +166,15 @@ def _normalize_age_range(lo: Optional[int], hi: Optional[int]) -> tuple[Optional
     return lo, hi
 
 
+def _to_years(value: int, unit: str, round_up: bool = False) -> int:
+    unit_l = (unit or "year").lower()
+    if unit_l.startswith("month"):
+        if round_up:
+            return max(0, (value + 11) // 12)
+        return max(0, value // 12)
+    return max(0, value)
+
+
 def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
     if not text:
         return []
@@ -174,10 +184,15 @@ def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
 
     candidates: List[tuple[Optional[int], Optional[int], int]] = []
     patterns = [
+        # Highest confidence: explicit unit-based recommended ages (months/years).
+        (4, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(months?|years?)\s*(?:to|[–-])\s*(\d{1,2})\s*(months?|years?)", "range_with_unit"),
+        (4, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(months?|years?)\s*(?:\+|and\s*above)", "plus_with_unit"),
         # Highest confidence: explicit recommended-age labels.
         (3, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})", "range"),
         (3, r"recommended\s*age(?:s)?\s*[:\-]?\s*(\d{1,2})\s*(?:\+|and\s*above)", "plus"),
         # Medium confidence: suitable-for / ages labels.
+        (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(months?|years?)\s*(?:to|[–-])\s*(\d{1,2})\s*(months?|years?)", "range_with_unit"),
+        (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(months?|years?)\s*(?:\+|and\s*above)", "plus_with_unit"),
         (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(?:to|[–-])\s*(\d{1,2})(?:\s*years?(?:\s*old)?)?", "range"),
         (2, r"(?:suitable\s*for|for\s*children\s*aged?|ages?)\s*[:\-]?\s*(\d{1,2})\s*(?:\+|and\s*above)", "plus"),
         # Lower confidence: unlabeled age statements.
@@ -191,6 +206,14 @@ def parse_age_ranges(text: str) -> List[tuple[Optional[int], Optional[int]]]:
                 lo, hi = int(match.group(1)), int(match.group(2))
             elif kind == "plus":
                 lo, hi = int(match.group(1)), None
+            elif kind == "range_with_unit":
+                lo_val, lo_unit = int(match.group(1)), match.group(2)
+                hi_val, hi_unit = int(match.group(3)), match.group(4)
+                lo = _to_years(lo_val, lo_unit, round_up=False)
+                hi = _to_years(hi_val, hi_unit, round_up=True)
+            elif kind == "plus_with_unit":
+                lo_val, lo_unit = int(match.group(1)), match.group(2)
+                lo, hi = _to_years(lo_val, lo_unit, round_up=False), None
             else:
                 continue
             lo, hi = _normalize_age_range(lo, hi)

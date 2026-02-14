@@ -22,7 +22,10 @@ def run() -> List[Event]:
     events: List[Event] = []
     for module in SOURCES:
         try:
-            events.extend(module.fetch())
+            try:
+                events.extend(module.fetch(max_events=80))
+            except TypeError:
+                events.extend(module.fetch())
         except Exception as exc:  # pragma: no cover
             print(f"[warn] {module.__name__} failed: {exc}")
     events = [e for e in events if is_probable_event(e)]

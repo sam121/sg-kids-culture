@@ -8,8 +8,8 @@ from typing import List
 import pytz
 
 SG_TZ = pytz.timezone("Asia/Singapore")
-SITE_TITLE = "Singapore Kids Culture Weekly"
-SITE_DESC = "Kid-friendly cultural events in Singapore: theatre, music, dance, museums."
+SITE_TITLE = "Singapore Social Events Weekly"
+SITE_DESC = "Social and cultural events in Singapore across theatre, music, dance, museums, and more."
 BASE_URL = "https://sam121.github.io/sg-kids-culture/"
 SOURCE_LABELS = {
     "esplanade": "Esplanade",
@@ -20,6 +20,7 @@ SOURCE_LABELS = {
     "nhb": "NHB Museums",
     "sam": "Singapore Art Museum",
     "artscience": "ArtScience Museum",
+    "sandstheatre": "Sands Theatre",
     "peranakan": "Peranakan Museum",
     "ihc": "Indian Heritage Centre",
     "childrensmuseum": "Children's Museum Singapore",
@@ -38,6 +39,7 @@ SCRAPED_PLACE_ORDER = [
     "nhb",
     "sam",
     "artscience",
+    "sandstheatre",
     "peranakan",
     "ihc",
     "childrensmuseum",
@@ -98,7 +100,7 @@ HTML_TEMPLATE = """<!doctype html>
     <header>
       <div>
         <h1>__SITE_TITLE__</h1>
-        <div class=\"muted\">Weekly picks for ages 0-5, 6-12, 13-17. Updated Mondays 9:00 AM SGT.</div>
+        <div class=\"muted\">Weekly social and cultural picks for all ages. Updated Mondays 9:00 AM SGT.</div>
         <div class=\"muted intro\">Tracking: __SCRAPED_PLACES__.</div>
         <div class=\"muted intro\">This run includes events from: __SOURCE_SUMMARY__.</div>
       </div>
@@ -136,6 +138,12 @@ HTML_TEMPLATE = """<!doctype html>
           <button class=\"filter-btn\" id=\"month-this\">This month</button>
         </div>
       </div>
+      <div class=\"filter-group\">
+        <div class=\"muted\">Location</div>
+        <div class=\"filters\" id=\"location-filters\">
+          <select id=\"location-select\" class=\"month-select\"></select>
+        </div>
+      </div>
     </div>
     <div id=\"result-count\" class=\"muted count\"></div>
 
@@ -152,6 +160,7 @@ HTML_TEMPLATE = """<!doctype html>
   </div>
   <script>
     const events = __EVENTS_JSON__;
+    const sourceLabels = __SOURCE_LABELS_JSON__;
     const grid = document.getElementById('grid');
 
     function eventRanges(ev) {
@@ -172,6 +181,15 @@ HTML_TEMPLATE = """<!doctype html>
     function eventCategories(ev) {
       if (!Array.isArray(ev.categories)) return [];
       return ev.categories.filter(Boolean);
+    }
+
+    function sourceLabel(source) {
+      return sourceLabels[source] || source || 'Unknown source';
+    }
+
+    function eventLocation(ev) {
+      if (typeof ev.venue === 'string' && ev.venue.trim()) return ev.venue.trim();
+      return sourceLabel(ev.source);
     }
 
     function parseDateSafe(iso) {
@@ -254,7 +272,7 @@ HTML_TEMPLATE = """<!doctype html>
       return buckets;
     }
 
-    function matchesFilter(ev, filterAge, filterCategory, filterMonth) {
+    function matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation) {
       if (filterAge !== 'all' && !eventBuckets(ev).includes(filterAge)) return false;
       if (filterCategory !== 'all' && !eventCategories(ev).includes(filterCategory)) return false;
       if (filterMonth !== 'all') {
@@ -262,13 +280,22 @@ HTML_TEMPLATE = """<!doctype html>
         if (!span) return false;
         if (filterMonth < span[0] || filterMonth > span[1]) return false;
       }
+      if (filterLocation !== 'all' && eventLocation(ev) !== filterLocation) return false;
       return true;
     }
 
     function bucketLabel(ev) {
       const buckets = eventBuckets(ev);
       if (buckets.length === 0) return 'age unknown';
-      return buckets.join('/');
+      const order = ['0-5', '6-12', '13-17'];
+      const bounds = { '0-5': [0, 5], '6-12': [6, 12], '13-17': [13, 17] };
+      const sorted = buckets.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      const contiguous = sorted.every((b, idx) => idx === 0 || order.indexOf(sorted[idx - 1]) + 1 === order.indexOf(b));
+      if (!contiguous) return sorted.join('/');
+      const first = bounds[sorted[0]][0];
+      const last = bounds[sorted[sorted.length - 1]][1];
+      if (first === 0 && last === 17) return 'all ages';
+      return `${first}-${last}`;
     }
 
     function sameDayInSingapore(left, right) {
@@ -367,9 +394,22 @@ HTML_TEMPLATE = """<!doctype html>
       }
     }
 
-    function render(filterAge = 'all', filterCategory = 'all', filterMonth = 'all') {
+    function setupLocationFilter() {
+      const select = document.getElementById('location-select');
+      if (!select) return;
+      const locations = Array.from(new Set(events.map(eventLocation))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+      const opts = [{ value: 'all', label: 'All locations' }].concat(locations.map(loc => ({ value: loc, label: loc })));
+      select.innerHTML = opts.map(o => `<option value=\"${o.value}\">${o.label}</option>`).join('');
+      select.value = state.location;
+      select.addEventListener('change', () => {
+        state.location = select.value;
+        render(state.age, state.category, state.month, state.location);
+      });
+    }
+
+    function render(filterAge = 'all', filterCategory = 'all', filterMonth = 'all', filterLocation = 'all') {
       grid.innerHTML = '';
-      const filtered = events.filter(ev => matchesFilter(ev, filterAge, filterCategory, filterMonth));
+      const filtered = events.filter(ev => matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation));
       filtered.forEach(ev => {
           const card = document.createElement('div');
           card.className = 'card';
@@ -394,18 +434,19 @@ HTML_TEMPLATE = """<!doctype html>
         const monthText = filterMonth === 'all' ? 'All upcoming' : monthLabel(filterMonth);
         const ageText = filterAge === 'all' ? 'All ages' : filterAge;
         const categoryText = filterCategory === 'all' ? 'All categories' : filterCategory;
-        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText}`;
+        const locationText = filterLocation === 'all' ? 'All locations' : filterLocation;
+        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText} - ${locationText}`;
       }
     }
 
-    const state = { age: 'all', category: 'all', month: 'all' };
+    const state = { age: 'all', category: 'all', month: 'all', location: 'all' };
 
     document.querySelectorAll('#age-filters .filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#age-filters .filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.age = btn.dataset.age;
-        render(state.age, state.category, state.month);
+        render(state.age, state.category, state.month, state.location);
       });
     });
 
@@ -414,12 +455,13 @@ HTML_TEMPLATE = """<!doctype html>
         document.querySelectorAll('#category-filters .filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.category = btn.dataset.category;
-        render(state.age, state.category, state.month);
+        render(state.age, state.category, state.month, state.location);
       });
     });
 
     setupMonthFilter();
-    render(state.age, state.category, state.month);
+    setupLocationFilter();
+    render(state.age, state.category, state.month, state.location);
   </script>
 </body>
 </html>
@@ -458,6 +500,7 @@ def render_html(events: List[dict]) -> str:
         HTML_TEMPLATE.replace("__SITE_TITLE__", SITE_TITLE)
         .replace("__SCRAPED_PLACES__", scraped_places_summary())
         .replace("__SOURCE_SUMMARY__", source_summary(events))
+        .replace("__SOURCE_LABELS_JSON__", json.dumps(SOURCE_LABELS))
         .replace("__EVENTS_JSON__", events_json)
     )
 

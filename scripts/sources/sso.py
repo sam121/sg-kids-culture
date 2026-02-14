@@ -15,7 +15,7 @@ from .common import (
 from .http import get
 
 BASE = "https://www.sso.org.sg"
-LISTING = f"{BASE}/family-concerts"
+LISTING = f"{BASE}/whats-on"
 
 
 def _extract_when_text(soup: BeautifulSoup) -> str | None:

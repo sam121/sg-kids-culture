@@ -48,6 +48,15 @@ CONFIGS = [
         allow_terms=("/museum/", "/events/", "/event/", "/exhibition", "/programmes"),
     ),
     VenueConfig(
+        source="sandstheatre",
+        base="https://www.marinabaysands.com",
+        listings=(
+            "https://www.marinabaysands.com/entertainment/shows.html",
+        ),
+        allow_terms=("/entertainment/", "/shows/", "/show/", "/events/", "/event/"),
+        blocked_terms=("/entertainment.html",),
+    ),
+    VenueConfig(
         source="peranakan",
         base="https://www.nhb.gov.sg/peranakanmuseum",
         listings=(

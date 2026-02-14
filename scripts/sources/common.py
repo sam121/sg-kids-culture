@@ -79,8 +79,12 @@ CATEGORY_PATTERNS = {
 SOURCE_DEFAULT_CATEGORIES = {
     "sso": ["Orchestra", "Music"],
     "sco": ["Orchestra", "Music"],
+    "wildrice": ["Theatre"],
+    "srt": ["Theatre"],
+    "practice": ["Theatre", "Music"],
     "gallery": ["Exhibition"],
     "nhb": ["Exhibition"],
+    "acm": ["Exhibition"],
     "sam": ["Exhibition"],
     "artscience": ["Exhibition"],
     "sandstheatre": ["Theatre", "Music"],

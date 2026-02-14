@@ -21,8 +21,12 @@ SOURCE_LABELS = {
     "sso": "SSO",
     "sco": "SCO",
     "artshouse": "Arts House Group",
+    "wildrice": "WILD RICE",
+    "srt": "Singapore Repertory Theatre",
+    "practice": "The Theatre Practice",
     "gallery": "National Gallery",
     "nhb": "NHB Museums",
+    "acm": "Asian Civilisations Museum",
     "sam": "Singapore Art Museum",
     "artscience": "ArtScience Museum",
     "sandstheatre": "Sands Theatre",
@@ -40,8 +44,12 @@ SCRAPED_PLACE_ORDER = [
     "sso",
     "sco",
     "artshouse",
+    "wildrice",
+    "srt",
+    "practice",
     "gallery",
     "nhb",
+    "acm",
     "sam",
     "artscience",
     "sandstheatre",
@@ -100,7 +108,7 @@ HTML_TEMPLATE = """<!doctype html>
     .hero-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
     .hero-links a { border-radius: 999px; border: 1px solid var(--line); padding: 8px 12px; text-decoration: none; color: var(--ink); font-weight: 600; background: #fff; }
     .hero-links a.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .stats { display: grid; grid-template-columns: 1fr; gap: 10px; }
     .stat { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 12px; }
     .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
     .stat .value { margin-top: 6px; font-size: 24px; font-weight: 700; line-height: 1.1; }
@@ -114,6 +122,7 @@ HTML_TEMPLATE = """<!doctype html>
     .mini-title { margin: 0; font-weight: 700; font-size: 15px; color: var(--ink); text-decoration: none; }
     .mini-meta { margin-top: 6px; color: var(--muted); font-size: 13px; }
     .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .filter-tabs { display: flex; gap: 10px; margin-top: 6px; margin-bottom: 10px; }
     .filter-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 2px; }
     .filter-group .muted { font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; }
     .month-select, .price-input { border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 12px; border-radius: 10px; font-weight: 600; min-width: 180px; }
@@ -168,7 +177,7 @@ HTML_TEMPLATE = """<!doctype html>
     <section class=\"hero\">
       <div class=\"hero-card\">
         <h1>__SITE_TITLE__</h1>
-        <div class=\"subtitle\">Weekly social and cultural listings across theatre, music, museums, cinema, and festivals in Singapore. Refreshes every Monday at 9:00 AM SGT.</div>
+        <div class=\"subtitle\">A cheerful little culture scout for Singapore: I round up theatre, music, museum and festival plans, then help you filter them fast. Fresh batch lands every Monday at 9:00 AM SGT.</div>
         <div class=\"hero-links\">
           <a class=\"primary\" href=\"#filters\">Start Filtering</a>
           <a href=\"about.html\">How This Works</a>
@@ -181,7 +190,6 @@ HTML_TEMPLATE = """<!doctype html>
       </div>
       <div class=\"hero-card\">
         <div class=\"stats\">
-          <div class=\"stat\"><div class=\"label\">Events In Feed</div><div class=\"value\" id=\"stat-total\">0</div></div>
           <div class=\"stat\"><div class=\"label\">Upcoming</div><div class=\"value\" id=\"stat-upcoming\">0</div></div>
           <div class=\"stat\"><div class=\"label\">Sources</div><div class=\"value\" id=\"stat-sources\">0</div></div>
           <div class=\"stat\"><div class=\"label\">Last Build</div><div class=\"tiny\">__UPDATED_AT__</div></div>
@@ -196,7 +204,11 @@ HTML_TEMPLATE = """<!doctype html>
     </section>
 
     <div class=\"panel\" id=\"filters\">
-      <div class=\"filter-groups\">
+      <div class=\"filter-tabs\" id=\"filter-tabs\">
+        <button class=\"filter-btn active\" data-tab=\"main\">Main filters</button>
+        <button class=\"filter-btn\" data-tab=\"places\">Places</button>
+      </div>
+      <div class=\"filter-groups\" id=\"filter-main\">
         <div class=\"filter-group\">
           <div class=\"muted\">Age</div>
           <div class=\"filters\" id=\"age-filters\">
@@ -228,12 +240,6 @@ HTML_TEMPLATE = """<!doctype html>
           </div>
         </div>
         <div class=\"filter-group\">
-          <div class=\"muted\">Location</div>
-          <div class=\"filters\" id=\"location-filters\">
-            <select id=\"location-select\" class=\"month-select\"></select>
-          </div>
-        </div>
-        <div class=\"filter-group\">
           <div class=\"muted\">Price</div>
           <div class=\"filters\" id=\"price-filters\">
             <button class=\"filter-btn active\" data-price=\"all\">All prices</button>
@@ -246,6 +252,20 @@ HTML_TEMPLATE = """<!doctype html>
           <div class=\"view-toggle\" id=\"view-toggle\">
             <button class=\"filter-btn active\" data-view=\"cards\">Card view</button>
             <button class=\"filter-btn\" data-view=\"calendar\">Calendar view</button>
+          </div>
+        </div>
+      </div>
+      <div class=\"filter-groups hidden\" id=\"filter-places\">
+        <div class=\"filter-group\">
+          <div class=\"muted\">Location</div>
+          <div class=\"filters\" id=\"location-filters\">
+            <select id=\"location-select\" class=\"month-select\"></select>
+          </div>
+        </div>
+        <div class=\"filter-group\">
+          <div class=\"muted\">Venue Source</div>
+          <div class=\"filters\" id=\"source-filters\">
+            <select id=\"source-select\" class=\"month-select\"></select>
           </div>
         </div>
       </div>
@@ -489,7 +509,7 @@ HTML_TEMPLATE = """<!doctype html>
       return true;
     }
 
-    function matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation, filterPriceMode, filterPriceMax) {
+    function matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation, filterSource, filterPriceMode, filterPriceMax) {
       if (filterAge !== 'all' && !eventBuckets(ev).includes(filterAge)) return false;
       if (filterCategory !== 'all' && !eventCategories(ev).includes(filterCategory)) return false;
       if (filterMonth !== 'all') {
@@ -498,12 +518,13 @@ HTML_TEMPLATE = """<!doctype html>
         if (filterMonth < span[0] || filterMonth > span[1]) return false;
       }
       if (filterLocation !== 'all' && eventLocation(ev) !== filterLocation) return false;
+      if (filterSource !== 'all' && String(ev.source || '').toLowerCase() !== filterSource) return false;
       if (!matchesPrice(ev, filterPriceMode, filterPriceMax)) return false;
       return true;
     }
 
     function eventHref(ev) {
-      return ev.detail_url || ev.url || '#';
+      return ev.url || ev.detail_url || '#';
     }
 
     function eventSort(a, b) {
@@ -560,6 +581,35 @@ HTML_TEMPLATE = """<!doctype html>
       });
     }
 
+    function setupSourceFilter() {
+      const select = document.getElementById('source-select');
+      if (!select) return;
+      const sources = Array.from(new Set(events.map(ev => String(ev.source || '').toLowerCase()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+      const opts = [{ value: 'all', label: 'All sources' }].concat(sources.map(src => ({ value: src, label: sourceLabel(src) })));
+      select.innerHTML = opts.map(o => `<option value=\"${escapeHtml(o.value)}\">${escapeHtml(o.label)}</option>`).join('');
+      select.value = state.source;
+      select.addEventListener('change', () => {
+        state.source = select.value;
+        renderAll();
+      });
+    }
+
+    function setupFilterTabs() {
+      const tabButtons = document.querySelectorAll('#filter-tabs .filter-btn');
+      const main = document.getElementById('filter-main');
+      const places = document.getElementById('filter-places');
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const tab = btn.dataset.tab || 'main';
+          state.activeTab = tab;
+          if (main) main.classList.toggle('hidden', tab !== 'main');
+          if (places) places.classList.toggle('hidden', tab !== 'places');
+        });
+      });
+    }
+
     function setupPriceFilters() {
       document.querySelectorAll('#price-filters .filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -596,7 +646,6 @@ HTML_TEMPLATE = """<!doctype html>
     }
 
     function setupStats() {
-      const total = events.length;
       const today = sgDateKey(new Date());
       const upcoming = events.filter(ev => {
         const span = eventDateSpan(ev);
@@ -604,10 +653,8 @@ HTML_TEMPLATE = """<!doctype html>
         return span[1] >= today;
       }).length;
       const srcCount = new Set(events.map(e => (e.source || '').toLowerCase()).filter(Boolean)).size;
-      const totalEl = document.getElementById('stat-total');
       const upcomingEl = document.getElementById('stat-upcoming');
       const srcEl = document.getElementById('stat-sources');
-      if (totalEl) totalEl.textContent = String(total);
       if (upcomingEl) upcomingEl.textContent = String(upcoming);
       if (srcEl) srcEl.textContent = String(srcCount);
     }
@@ -761,7 +808,7 @@ HTML_TEMPLATE = """<!doctype html>
 
     function renderAll() {
       const filtered = events
-        .filter(ev => matchesFilter(ev, state.age, state.category, state.month, state.location, state.priceMode, state.maxPrice))
+        .filter(ev => matchesFilter(ev, state.age, state.category, state.month, state.location, state.source, state.priceMode, state.maxPrice))
         .sort(eventSort);
 
       renderCards(filtered);
@@ -774,8 +821,9 @@ HTML_TEMPLATE = """<!doctype html>
         const ageText = state.age === 'all' ? 'All ages' : state.age;
         const categoryText = state.category === 'all' ? 'All categories' : state.category;
         const locationText = state.location === 'all' ? 'All locations' : state.location;
+        const sourceText = state.source === 'all' ? 'All sources' : sourceLabel(state.source);
         const priceText = priceFilterLabel(state.priceMode, state.maxPrice);
-        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText} - ${locationText} - ${priceText}`;
+        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText} - ${locationText} - ${sourceText} - ${priceText}`;
       }
     }
 
@@ -784,9 +832,11 @@ HTML_TEMPLATE = """<!doctype html>
       category: 'all',
       month: 'all',
       location: 'all',
+      source: 'all',
       priceMode: 'all',
       maxPrice: null,
       view: 'cards',
+      activeTab: 'main',
     };
 
     document.querySelectorAll('#age-filters .filter-btn').forEach(btn => {
@@ -809,8 +859,10 @@ HTML_TEMPLATE = """<!doctype html>
 
     setupMonthFilter();
     setupLocationFilter();
+    setupSourceFilter();
     setupPriceFilters();
     setupViewToggle();
+    setupFilterTabs();
     setupStats();
     renderFeatured();
     renderAll();

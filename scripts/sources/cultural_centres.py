@@ -31,6 +31,44 @@ class VenueConfig:
 
 CONFIGS = [
     VenueConfig(
+        source="wildrice",
+        base="https://www.wildrice.com.sg",
+        listings=(
+            "https://www.wildrice.com.sg/whats-on/",
+        ),
+        allow_terms=("/whats-on/", "/event/", "/events/"),
+        blocked_terms=("/whats-on/page/", "/what-s-on", "/about", "/privacy", "/careers"),
+    ),
+    VenueConfig(
+        source="srt",
+        base="https://www.srt.com.sg",
+        listings=(
+            "https://www.srt.com.sg/",
+            "https://www.srt.com.sg/index",
+        ),
+        allow_terms=("/whats-on", "/event", "/events", "/show", "/production", "/stage-camp"),
+        blocked_terms=(
+            "/about",
+            "/privacy",
+            "/careers",
+            "/contact",
+            "/blog",
+            "/news",
+            "/support",
+            "/friends-of-srt",
+            "/people-at-srt",
+        ),
+    ),
+    VenueConfig(
+        source="practice",
+        base="https://www.practice.org.sg",
+        listings=(
+            "https://www.practice.org.sg/whats-on",
+        ),
+        allow_terms=("/whats-on", "/event", "/events", "/programme", "/programmes"),
+        blocked_terms=("/about", "/privacy", "/careers", "/contact"),
+    ),
+    VenueConfig(
         source="sam",
         base="https://www.singaporeartmuseum.sg",
         listings=(
@@ -64,6 +102,17 @@ CONFIGS = [
             "https://www.nhb.gov.sg/peranakanmuseum/whatson/programmes",
         ),
         allow_terms=("/whatson/", "/events/", "/event/", "/exhibition", "/programme"),
+    ),
+    VenueConfig(
+        source="acm",
+        base="https://www.nhb.gov.sg/acm",
+        listings=(
+            "https://www.nhb.gov.sg/acm/whats-on/overview/",
+            "https://www.nhb.gov.sg/acm/whats-on/programmes",
+            "https://www.nhb.gov.sg/acm/whats-on/exhibitions",
+        ),
+        allow_terms=("/whats-on/", "/exhibitions/", "/programmes/", "/lectures-and-seminars/"),
+        blocked_terms=("/whats-on/overview", "/view-all"),
     ),
     VenueConfig(
         source="ihc",

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from datetime import datetime
+from html import escape
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlsplit, urlunsplit
 
 import pytz
 
@@ -11,6 +15,7 @@ SG_TZ = pytz.timezone("Asia/Singapore")
 SITE_TITLE = "Singapore Social Events Weekly"
 SITE_DESC = "Social and cultural events in Singapore across theatre, music, dance, museums, and more."
 BASE_URL = "https://sam121.github.io/sg-kids-culture/"
+
 SOURCE_LABELS = {
     "esplanade": "Esplanade",
     "sso": "SSO",
@@ -56,13 +61,13 @@ HTML_TEMPLATE = """<!doctype html>
   <meta charset=\"utf-8\" />
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
   <title>__SITE_TITLE__</title>
+  <meta name=\"description\" content=\"__SITE_DESC__\" />
   <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />
   <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />
   <link href=\"https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap\" rel=\"stylesheet\" />
   <style>
     :root {
       --bg: #f5f2e9;
-      --bg-alt: #ece6d7;
       --card: #fffdf7;
       --ink: #23262f;
       --muted: #5b6376;
@@ -83,156 +88,69 @@ HTML_TEMPLATE = """<!doctype html>
         linear-gradient(180deg, var(--bg) 0%, #f8f5ee 100%);
     }
     .shell { max-width: 1180px; margin: 0 auto; padding: 28px 18px 72px; }
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      padding: 10px 0 18px;
-      border-bottom: 1px solid var(--line);
-    }
-    .brand { font-weight: 700; letter-spacing: 0.1px; color: var(--ink); text-decoration: none; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 10px 0 18px; border-bottom: 1px solid var(--line); }
+    .brand { font-weight: 700; color: var(--ink); text-decoration: none; }
     .nav { display: flex; gap: 14px; flex-wrap: wrap; }
     .nav a { color: var(--muted); text-decoration: none; font-weight: 600; }
     .nav a:hover { color: var(--ink); }
-    .hero {
-      margin-top: 18px;
-      display: grid;
-      grid-template-columns: 1.5fr 1fr;
-      gap: 14px;
-      align-items: stretch;
-    }
-    .hero-card {
-      background: linear-gradient(145deg, #fffef8 0%, #f5f7fb 100%);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      box-shadow: var(--shadow);
-      padding: 20px;
-    }
-    h1 {
-      margin: 0;
-      font-family: 'Fraunces', serif;
-      font-size: clamp(28px, 4vw, 42px);
-      line-height: 1.1;
-      letter-spacing: -0.4px;
-    }
-    .subtitle {
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.6;
-      max-width: 70ch;
-    }
+    .hero { margin-top: 18px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; align-items: stretch; }
+    .hero-card { background: linear-gradient(145deg, #fffef8 0%, #f5f7fb 100%); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 20px; }
+    h1 { margin: 0; font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 42px); line-height: 1.1; letter-spacing: -0.4px; }
+    .subtitle { margin-top: 10px; color: var(--muted); font-size: 15px; line-height: 1.6; max-width: 70ch; }
     .hero-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-    .hero-links a {
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      padding: 8px 12px;
-      text-decoration: none;
-      color: var(--ink);
-      font-weight: 600;
-      background: #fff;
-    }
-    .hero-links a.primary {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .stat {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: #fff;
-      padding: 12px;
-    }
+    .hero-links a { border-radius: 999px; border: 1px solid var(--line); padding: 8px 12px; text-decoration: none; color: var(--ink); font-weight: 600; background: #fff; }
+    .hero-links a.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .stat { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 12px; }
     .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
     .stat .value { margin-top: 6px; font-size: 24px; font-weight: 700; line-height: 1.1; }
     .stat .tiny { margin-top: 4px; color: var(--muted); font-size: 12px; }
     .muted { color: var(--muted); font-size: 14px; line-height: 1.5; }
-    .intro-block {
-      margin-top: 14px;
-      background: rgba(255, 255, 255, 0.65);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px;
-    }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px 16px 18px;
-      box-shadow: var(--shadow);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: transform 140ms ease, box-shadow 140ms ease;
-    }
+    .intro-block { margin-top: 14px; background: rgba(255, 255, 255, 0.65); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+    .panel { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.72); }
+    .panel-title { font-weight: 700; letter-spacing: 0.2px; }
+    .featured-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-top: 12px; }
+    .mini-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
+    .mini-title { margin: 0; font-weight: 700; font-size: 15px; color: var(--ink); text-decoration: none; }
+    .mini-meta { margin-top: 6px; color: var(--muted); font-size: 13px; }
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .filter-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 2px; }
+    .filter-group .muted { font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .month-select, .price-input { border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 12px; border-radius: 10px; font-weight: 600; min-width: 180px; }
+    .price-wrap { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; background: #fff; }
+    .price-wrap span { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .price-input { min-width: 110px; border: none; padding: 8px 0; }
+    .price-input:focus { outline: none; }
+    .filter-btn { border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+    .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .view-toggle { display: flex; gap: 10px; margin-top: 10px; }
+    .count { margin-top: 10px; }
+    .signup { margin-top: 22px; padding: 16px; border: 1px dashed var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.6); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 16px 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; transition: transform 140ms ease, box-shadow 140ms ease; }
     .card:hover { transform: translateY(-2px); box-shadow: 0 18px 34px rgba(31, 36, 48, 0.12); }
     .title { font-weight: 700; font-size: 18px; margin: 0; color: var(--ink); text-decoration: none; }
     .meta { display: flex; flex-direction: column; gap: 6px; }
     .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .pill {
-      background: var(--pill);
-      color: var(--accent);
-      border: 1px solid #c3e8e3;
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .pill-source {
-      background: #fcefe5;
-      color: var(--accent-2);
-      border-color: #f2d1bb;
-    }
+    .pill { background: var(--pill); color: var(--accent); border: 1px solid #c3e8e3; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pill-source { background: #fcefe5; color: var(--accent-2); border-color: #f2d1bb; }
+    .calendar-view { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; }
+    .calendar-head { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid var(--line); background: #faf7ef; }
+    .calendar-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .calendar-grid th { border-bottom: 1px solid var(--line); padding: 8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .calendar-grid td { vertical-align: top; min-height: 122px; height: 122px; border-top: 1px solid var(--line); border-right: 1px solid var(--line); padding: 6px; }
+    .calendar-grid tr td:last-child { border-right: none; }
+    .cal-day { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+    .cal-chip { display: block; border-radius: 8px; padding: 3px 6px; margin-top: 4px; text-decoration: none; font-size: 11px; line-height: 1.3; background: #ecf7f5; color: #0f5f59; border: 1px solid #cae7e3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-more { margin-top: 4px; font-size: 11px; color: var(--muted); }
+    .hidden { display: none; }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    .panel {
-      margin-top: 18px;
-      padding: 14px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.7);
-    }
-    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
-    .filter-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 2px; }
-    .filter-group .muted { font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; }
-    .month-select {
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--ink);
-      padding: 8px 12px;
-      border-radius: 10px;
-      font-weight: 600;
-      min-width: 200px;
-    }
-    .filter-btn {
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--ink);
-      padding: 8px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .count { margin-top: 10px; }
-    .signup {
-      margin-top: 22px;
-      padding: 16px;
-      border: 1px dashed var(--line);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.6);
-    }
     footer { margin-top: 32px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
     @media (max-width: 980px) {
       .hero { grid-template-columns: 1fr; }
       .filter-groups { grid-template-columns: 1fr; }
+      .calendar-grid td { min-height: 108px; height: 108px; }
     }
   </style>
 </head>
@@ -263,24 +181,18 @@ HTML_TEMPLATE = """<!doctype html>
       </div>
       <div class=\"hero-card\">
         <div class=\"stats\">
-          <div class=\"stat\">
-            <div class=\"label\">Events In Feed</div>
-            <div class=\"value\" id=\"stat-total\">0</div>
-          </div>
-          <div class=\"stat\">
-            <div class=\"label\">Upcoming</div>
-            <div class=\"value\" id=\"stat-upcoming\">0</div>
-          </div>
-          <div class=\"stat\">
-            <div class=\"label\">Sources</div>
-            <div class=\"value\" id=\"stat-sources\">0</div>
-          </div>
-          <div class=\"stat\">
-            <div class=\"label\">Last Build</div>
-            <div class=\"tiny\">__UPDATED_AT__</div>
-          </div>
+          <div class=\"stat\"><div class=\"label\">Events In Feed</div><div class=\"value\" id=\"stat-total\">0</div></div>
+          <div class=\"stat\"><div class=\"label\">Upcoming</div><div class=\"value\" id=\"stat-upcoming\">0</div></div>
+          <div class=\"stat\"><div class=\"label\">Sources</div><div class=\"value\" id=\"stat-sources\">0</div></div>
+          <div class=\"stat\"><div class=\"label\">Last Build</div><div class=\"tiny\">__UPDATED_AT__</div></div>
         </div>
       </div>
+    </section>
+
+    <section class=\"panel\" id=\"featured\">
+      <div class=\"panel-title\">Featured This Week</div>
+      <div id=\"featured-grid\" class=\"featured-grid\"></div>
+      <div id=\"featured-empty\" class=\"muted hidden\">No events with clear dates in this week window.</div>
     </section>
 
     <div class=\"panel\" id=\"filters\">
@@ -321,6 +233,21 @@ HTML_TEMPLATE = """<!doctype html>
             <select id=\"location-select\" class=\"month-select\"></select>
           </div>
         </div>
+        <div class=\"filter-group\">
+          <div class=\"muted\">Price</div>
+          <div class=\"filters\" id=\"price-filters\">
+            <button class=\"filter-btn active\" data-price=\"all\">All prices</button>
+            <button class=\"filter-btn\" data-price=\"free\">Free only</button>
+            <label class=\"price-wrap\"><span>Max S$</span><input id=\"max-price\" class=\"price-input\" type=\"number\" min=\"0\" step=\"1\" placeholder=\"e.g. 40\" /></label>
+          </div>
+        </div>
+        <div class=\"filter-group\">
+          <div class=\"muted\">View</div>
+          <div class=\"view-toggle\" id=\"view-toggle\">
+            <button class=\"filter-btn active\" data-view=\"cards\">Card view</button>
+            <button class=\"filter-btn\" data-view=\"calendar\">Calendar view</button>
+          </div>
+        </div>
       </div>
       <div id=\"result-count\" class=\"muted count\"></div>
     </div>
@@ -331,15 +258,27 @@ HTML_TEMPLATE = """<!doctype html>
     </div>
 
     <div id=\"grid\" class=\"grid\"></div>
+    <div id=\"calendar-view\" class=\"calendar-view hidden\"></div>
 
     <footer>
       <div>Generated automatically from public pages. Sources in this run: __SOURCE_SUMMARY__.</div>
     </footer>
   </div>
+
   <script>
     const events = __EVENTS_JSON__;
     const sourceLabels = __SOURCE_LABELS_JSON__;
     const grid = document.getElementById('grid');
+    const calendarView = document.getElementById('calendar-view');
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
 
     function eventRanges(ev) {
       const ranges = [];
@@ -376,21 +315,43 @@ HTML_TEMPLATE = """<!doctype html>
       return Number.isNaN(d.getTime()) ? null : d;
     }
 
-    function monthPartsFromDate(date) {
-      const parts = new Intl.DateTimeFormat('en-SG', {
-        timeZone: 'Asia/Singapore',
-        year: 'numeric',
-        month: '2-digit',
-      }).formatToParts(date);
+    function sgParts(date, opts) {
+      return new Intl.DateTimeFormat('en-SG', Object.assign({ timeZone: 'Asia/Singapore' }, opts)).formatToParts(date);
+    }
+
+    function sgDateKey(date) {
+      const parts = sgParts(date, { year: 'numeric', month: '2-digit', day: '2-digit' });
       const year = parts.find(p => p.type === 'year')?.value;
       const month = parts.find(p => p.type === 'month')?.value;
-      return { year, month };
+      const day = parts.find(p => p.type === 'day')?.value;
+      return year && month && day ? `${year}-${month}-${day}` : null;
     }
 
     function monthKeyFromDate(date) {
-      const { year, month } = monthPartsFromDate(date);
-      if (!year || !month) return null;
-      return `${year}-${month}`;
+      const parts = sgParts(date, { year: 'numeric', month: '2-digit' });
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      return year && month ? `${year}-${month}` : null;
+    }
+
+    function keyToUtcDate(key) {
+      const [y, m, d] = key.split('-').map(Number);
+      if (!y || !m || !d) return null;
+      return new Date(Date.UTC(y, m - 1, d));
+    }
+
+    function utcDateToKey(d) {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function addDaysKey(key, delta) {
+      const d = keyToUtcDate(key);
+      if (!d) return key;
+      d.setUTCDate(d.getUTCDate() + delta);
+      return utcDateToKey(d);
     }
 
     function monthLabel(key) {
@@ -408,19 +369,25 @@ HTML_TEMPLATE = """<!doctype html>
       return `${year}-${String(month).padStart(2, '0')}`;
     }
 
-    function eventMonthSpan(ev) {
+    function eventDateSpan(ev) {
       const start = parseDateSafe(ev.start);
       const end = parseDateSafe(ev.end);
       if (!start && !end) return null;
-      const startKey = monthKeyFromDate(start || end);
-      const endKey = monthKeyFromDate(end || start);
+      const startKey = sgDateKey(start || end);
+      const endKey = sgDateKey(end || start);
       if (!startKey || !endKey) return null;
       return startKey <= endKey ? [startKey, endKey] : [endKey, startKey];
     }
 
-    function allMonthKeys(events) {
+    function eventMonthSpan(ev) {
+      const span = eventDateSpan(ev);
+      if (!span) return null;
+      return [span[0].slice(0, 7), span[1].slice(0, 7)];
+    }
+
+    function allMonthKeys(rows) {
       const set = new Set();
-      events.forEach(ev => {
+      rows.forEach(ev => {
         const span = eventMonthSpan(ev);
         if (!span) return;
         let key = span[0];
@@ -446,20 +413,7 @@ HTML_TEMPLATE = """<!doctype html>
     function eventBuckets(ev) {
       const ranges = eventRanges(ev);
       if (ranges.length === 0) return [];
-      const buckets = ['0-5', '6-12', '13-17'].filter(b => ranges.some(r => bucketOverlap(r, b)));
-      return buckets;
-    }
-
-    function matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation) {
-      if (filterAge !== 'all' && !eventBuckets(ev).includes(filterAge)) return false;
-      if (filterCategory !== 'all' && !eventCategories(ev).includes(filterCategory)) return false;
-      if (filterMonth !== 'all') {
-        const span = eventMonthSpan(ev);
-        if (!span) return false;
-        if (filterMonth < span[0] || filterMonth > span[1]) return false;
-      }
-      if (filterLocation !== 'all' && eventLocation(ev) !== filterLocation) return false;
-      return true;
+      return ['0-5', '6-12', '13-17'].filter(b => ranges.some(r => bucketOverlap(r, b)));
     }
 
     function bucketLabel(ev) {
@@ -477,41 +431,22 @@ HTML_TEMPLATE = """<!doctype html>
     }
 
     function sameDayInSingapore(left, right) {
-      const l = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).format(left);
-      const r = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit' }).format(right);
-      return l === r;
+      return sgDateKey(left) === sgDateKey(right);
     }
 
     function isMidnightInSingapore(date) {
-      const parts = new Intl.DateTimeFormat('en-SG', {
-        timeZone: 'Asia/Singapore',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).formatToParts(date);
+      const parts = sgParts(date, { hour: '2-digit', minute: '2-digit', hour12: false });
       const hh = parts.find(p => p.type === 'hour')?.value;
       const mm = parts.find(p => p.type === 'minute')?.value;
       return hh === '00' && mm === '00';
     }
 
     function formatDateOnly(date) {
-      return date.toLocaleDateString('en-SG', {
-        timeZone: 'Asia/Singapore',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
+      return date.toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', year: 'numeric' });
     }
 
     function formatDateTime(date) {
-      return date.toLocaleString('en-SG', {
-        timeZone: 'Asia/Singapore',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      return date.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
     function formatDateLabel(ev) {
@@ -525,48 +460,88 @@ HTML_TEMPLATE = """<!doctype html>
         const right = isMidnightInSingapore(end) ? formatDateOnly(end) : formatDateTime(end);
         return `Runs ${left} to ${right}`;
       }
-      if (start) {
-        return `From ${isMidnightInSingapore(start) ? formatDateOnly(start) : formatDateTime(start)}`;
-      }
-      if (typeof ev.raw_date === 'string' && ev.raw_date.trim()) {
-        return `Dates: ${ev.raw_date.trim()}`;
-      }
+      if (start) return `From ${isMidnightInSingapore(start) ? formatDateOnly(start) : formatDateTime(start)}`;
+      if (typeof ev.raw_date === 'string' && ev.raw_date.trim()) return `Dates: ${ev.raw_date.trim()}`;
       return 'Date TBC';
     }
 
-    function currentMonthKey() {
-      return monthKeyFromDate(new Date());
+    function eventMinPrice(ev) {
+      const txt = String(ev.price || '').trim();
+      if (!txt) return null;
+      if (/\bfree\b/i.test(txt)) return 0;
+      const nums = txt.replace(/,/g, '').match(/\d+(?:\.\d+)?/g);
+      if (!nums || nums.length === 0) return null;
+      return Math.min(...nums.map(Number).filter(n => !Number.isNaN(n)));
+    }
+
+    function priceFilterLabel(mode, max) {
+      if (mode === 'free') return 'Free only';
+      if (max !== null && max !== undefined && !Number.isNaN(max)) return `<= S$${max}`;
+      return 'All prices';
+    }
+
+    function matchesPrice(ev, mode, max) {
+      const min = eventMinPrice(ev);
+      if (mode === 'free') return min === 0;
+      if (max !== null && max !== undefined && !Number.isNaN(max)) {
+        return min !== null && min <= max;
+      }
+      return true;
+    }
+
+    function matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation, filterPriceMode, filterPriceMax) {
+      if (filterAge !== 'all' && !eventBuckets(ev).includes(filterAge)) return false;
+      if (filterCategory !== 'all' && !eventCategories(ev).includes(filterCategory)) return false;
+      if (filterMonth !== 'all') {
+        const span = eventMonthSpan(ev);
+        if (!span) return false;
+        if (filterMonth < span[0] || filterMonth > span[1]) return false;
+      }
+      if (filterLocation !== 'all' && eventLocation(ev) !== filterLocation) return false;
+      if (!matchesPrice(ev, filterPriceMode, filterPriceMax)) return false;
+      return true;
+    }
+
+    function eventHref(ev) {
+      return ev.detail_url || ev.url || '#';
+    }
+
+    function eventSort(a, b) {
+      const aDate = parseDateSafe(a.start);
+      const bDate = parseDateSafe(b.start);
+      if (!aDate && !bDate) return String(a.title || '').localeCompare(String(b.title || ''));
+      if (!aDate) return 1;
+      if (!bDate) return -1;
+      return aDate - bDate;
     }
 
     function setupMonthFilter() {
       const select = document.getElementById('month-select');
       if (!select) return;
       const keys = allMonthKeys(events);
-      const current = currentMonthKey();
+      const current = monthKeyFromDate(new Date());
       const upcomingKeys = current ? keys.filter(k => k >= current) : keys;
       const opts = [{ value: 'all', label: 'All upcoming' }];
       if (current) opts.push({ value: current, label: `This month (${monthLabel(current)})` });
       upcomingKeys.forEach(key => {
-        if (!opts.some(o => o.value === key)) {
-          opts.push({ value: key, label: monthLabel(key) });
-        }
+        if (!opts.some(o => o.value === key)) opts.push({ value: key, label: monthLabel(key) });
       });
-      select.innerHTML = opts.map(o => `<option value=\"${o.value}\">${o.label}</option>`).join('');
+      select.innerHTML = opts.map(o => `<option value=\"${o.value}\">${escapeHtml(o.label)}</option>`).join('');
       state.month = current && opts.some(o => o.value === current) ? current : 'all';
       select.value = state.month;
       select.addEventListener('change', () => {
         state.month = select.value;
-        render(state.age, state.category, state.month);
+        renderAll();
       });
 
       const thisBtn = document.getElementById('month-this');
       if (thisBtn) {
         thisBtn.addEventListener('click', () => {
-          const nowKey = currentMonthKey();
+          const nowKey = monthKeyFromDate(new Date());
           if (nowKey && Array.from(select.options).some(o => o.value === nowKey)) {
             select.value = nowKey;
             state.month = nowKey;
-            render(state.age, state.category, state.month);
+            renderAll();
           }
         });
       }
@@ -577,64 +552,56 @@ HTML_TEMPLATE = """<!doctype html>
       if (!select) return;
       const locations = Array.from(new Set(events.map(eventLocation))).filter(Boolean).sort((a, b) => a.localeCompare(b));
       const opts = [{ value: 'all', label: 'All locations' }].concat(locations.map(loc => ({ value: loc, label: loc })));
-      select.innerHTML = opts.map(o => `<option value=\"${o.value}\">${o.label}</option>`).join('');
+      select.innerHTML = opts.map(o => `<option value=\"${escapeHtml(o.value)}\">${escapeHtml(o.label)}</option>`).join('');
       select.value = state.location;
       select.addEventListener('change', () => {
         state.location = select.value;
-        render(state.age, state.category, state.month, state.location);
+        renderAll();
       });
     }
 
-    function render(filterAge = 'all', filterCategory = 'all', filterMonth = 'all', filterLocation = 'all') {
-      grid.innerHTML = '';
-      const filtered = events.filter(ev => matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation));
-      filtered.sort((a, b) => {
-        const aDate = parseDateSafe(a.start);
-        const bDate = parseDateSafe(b.start);
-        if (!aDate && !bDate) return (a.title || '').localeCompare(b.title || '');
-        if (!aDate) return 1;
-        if (!bDate) return -1;
-        return aDate - bDate;
+    function setupPriceFilters() {
+      document.querySelectorAll('#price-filters .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#price-filters .filter-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.priceMode = btn.dataset.price || 'all';
+          renderAll();
+        });
       });
-      filtered.forEach(ev => {
-          const card = document.createElement('div');
-          card.className = 'card';
-          const categoryPills = eventCategories(ev).map(cat => `<span class=\"pill\">${cat}</span>`).join('');
-          card.innerHTML = `
-            <div class=\"pill-row\">
-              <span class=\"pill pill-source\">${sourceLabel(ev.source)}</span>
-              <span class=\"pill\">${bucketLabel(ev)}</span>
-              ${categoryPills}
-            </div>
-            <a class=\"title\" href=\"${ev.url}\" target=\"_blank\" rel=\"noopener\">${ev.title}</a>
-            <div class=\"meta muted\">
-              <span>${formatDateLabel(ev)}</span>
-              ${ev.venue ? `<span>${ev.venue}</span>` : ''}
-              ${ev.price ? `<span>${ev.price}</span>` : ''}
-            </div>
-          `;
-          grid.appendChild(card);
-      });
-      const countEl = document.getElementById('result-count');
-      if (countEl) {
-        const monthText = filterMonth === 'all' ? 'All upcoming' : monthLabel(filterMonth);
-        const ageText = filterAge === 'all' ? 'All ages' : filterAge;
-        const categoryText = filterCategory === 'all' ? 'All categories' : filterCategory;
-        const locationText = filterLocation === 'all' ? 'All locations' : filterLocation;
-        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText} - ${locationText}`;
+      const input = document.getElementById('max-price');
+      if (input) {
+        input.addEventListener('input', () => {
+          const raw = input.value.trim();
+          if (!raw) {
+            state.maxPrice = null;
+          } else {
+            const parsed = Number(raw);
+            state.maxPrice = Number.isNaN(parsed) ? null : parsed;
+          }
+          renderAll();
+        });
       }
+    }
+
+    function setupViewToggle() {
+      document.querySelectorAll('#view-toggle .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#view-toggle .filter-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.view = btn.dataset.view || 'cards';
+          renderAll();
+        });
+      });
     }
 
     function setupStats() {
       const total = events.length;
+      const today = sgDateKey(new Date());
       const upcoming = events.filter(ev => {
-        const end = parseDateSafe(ev.end);
-        const start = parseDateSafe(ev.start);
-        const d = end || start;
-        if (!d) return true;
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        return d >= today;
+        const span = eventDateSpan(ev);
+        if (!span) return true;
+        return span[1] >= today;
       }).length;
       const srcCount = new Set(events.map(e => (e.source || '').toLowerCase()).filter(Boolean)).size;
       const totalEl = document.getElementById('stat-total');
@@ -645,14 +612,189 @@ HTML_TEMPLATE = """<!doctype html>
       if (srcEl) srcEl.textContent = String(srcCount);
     }
 
-    const state = { age: 'all', category: 'all', month: 'all', location: 'all' };
+    function weekWindowInSg() {
+      const now = new Date();
+      const todayKey = sgDateKey(now);
+      const weekday = sgParts(now, { weekday: 'short' }).find(p => p.type === 'weekday')?.value || 'Mon';
+      const map = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+      const idx = map[weekday] || 1;
+      const start = addDaysKey(todayKey, -(idx - 1));
+      const end = addDaysKey(start, 6);
+      return [start, end];
+    }
+
+    function renderFeatured() {
+      const box = document.getElementById('featured-grid');
+      const empty = document.getElementById('featured-empty');
+      if (!box || !empty) return;
+      const [weekStart, weekEnd] = weekWindowInSg();
+      const picked = events
+        .filter(ev => {
+          const span = eventDateSpan(ev);
+          if (!span) return false;
+          return span[0] <= weekEnd && span[1] >= weekStart;
+        })
+        .sort(eventSort)
+        .slice(0, 6);
+
+      if (picked.length === 0) {
+        box.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      box.innerHTML = picked
+        .map(ev => {
+          const href = eventHref(ev);
+          return `
+            <article class=\"mini-card\">
+              <a class=\"mini-title\" href=\"${escapeHtml(href)}\">${escapeHtml(ev.title || 'Untitled Event')}</a>
+              <div class=\"mini-meta\">${escapeHtml(formatDateLabel(ev))}</div>
+              <div class=\"mini-meta\">${escapeHtml(eventLocation(ev))} · ${escapeHtml(sourceLabel(ev.source))}</div>
+            </article>
+          `;
+        })
+        .join('');
+    }
+
+    function renderCards(rows) {
+      grid.innerHTML = '';
+      rows.forEach(ev => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const categoryPills = eventCategories(ev).map(cat => `<span class=\"pill\">${escapeHtml(cat)}</span>`).join('');
+        const href = eventHref(ev);
+        const sourceUrl = ev.url ? `<span><a href=\"${escapeHtml(ev.url)}\" target=\"_blank\" rel=\"noopener\">Official listing</a></span>` : '';
+        const price = ev.price ? `<span>${escapeHtml(ev.price)}</span>` : '';
+        const venue = ev.venue ? `<span>${escapeHtml(ev.venue)}</span>` : '';
+        card.innerHTML = `
+          <div class=\"pill-row\">
+            <span class=\"pill pill-source\">${escapeHtml(sourceLabel(ev.source))}</span>
+            <span class=\"pill\">${escapeHtml(bucketLabel(ev))}</span>
+            ${categoryPills}
+          </div>
+          <a class=\"title\" href=\"${escapeHtml(href)}\">${escapeHtml(ev.title || 'Untitled Event')}</a>
+          <div class=\"meta muted\">
+            <span>${escapeHtml(formatDateLabel(ev))}</span>
+            ${venue}
+            ${price}
+            ${sourceUrl}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderCalendar(rows) {
+      const monthKey = state.month !== 'all' ? state.month : (monthKeyFromDate(new Date()) || allMonthKeys(rows)[0]);
+      if (!monthKey) {
+        calendarView.innerHTML = '<div class=\"calendar-head\"><span>No month selected</span></div>';
+        return;
+      }
+      const [year, month] = monthKey.split('-').map(Number);
+      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate;
+      const first = new Date(Date.UTC(year, month - 1, 1));
+      const firstDowMonday = (first.getUTCDay() + 6) % 7;
+      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+      const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+      const byDay = {};
+      for (let d = 1; d <= daysInMonth; d += 1) {
+        byDay[d] = [];
+      }
+      rows.forEach(ev => {
+        const span = eventDateSpan(ev);
+        if (!span) return;
+        const start = span[0] < monthStart ? monthStart : span[0];
+        const end = span[1] > monthEnd ? monthEnd : span[1];
+        if (start > end) return;
+        let key = start;
+        while (key <= end) {
+          const day = Number(key.slice(8, 10));
+          if (byDay[day]) byDay[day].push(ev);
+          const next = addDaysKey(key, 1);
+          if (next === key) break;
+          key = next;
+        }
+      });
+
+      const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const cells = [];
+      for (let i = 0; i < firstDowMonday; i += 1) cells.push(null);
+      for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
+      while (cells.length % 7 !== 0) cells.push(null);
+
+      let body = '';
+      for (let row = 0; row < cells.length / 7; row += 1) {
+        body += '<tr>';
+        for (let col = 0; col < 7; col += 1) {
+          const day = cells[row * 7 + col];
+          if (!day) {
+            body += '<td></td>';
+            continue;
+          }
+          const items = (byDay[day] || []).slice(0, 3);
+          const chips = items.map(ev => `<a class=\"cal-chip\" href=\"${escapeHtml(eventHref(ev))}\" title=\"${escapeHtml(ev.title || '')}\">${escapeHtml(ev.title || 'Untitled')}</a>`).join('');
+          const extra = (byDay[day] || []).length > 3 ? `<div class=\"cal-more\">+${(byDay[day] || []).length - 3} more</div>` : '';
+          body += `<td><div class=\"cal-day\">${day}</div>${chips}${extra}</td>`;
+        }
+        body += '</tr>';
+      }
+
+      calendarView.innerHTML = `
+        <div class=\"calendar-head\">
+          <strong>${escapeHtml(monthLabel(monthKey))}</strong>
+          <span class=\"muted\">Showing ${rows.length} matching events</span>
+        </div>
+        <table class=\"calendar-grid\">
+          <thead><tr>${names.map(n => `<th>${n}</th>`).join('')}</tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      `;
+    }
+
+    function setView(view) {
+      const cards = view !== 'calendar';
+      grid.classList.toggle('hidden', !cards);
+      calendarView.classList.toggle('hidden', cards);
+    }
+
+    function renderAll() {
+      const filtered = events
+        .filter(ev => matchesFilter(ev, state.age, state.category, state.month, state.location, state.priceMode, state.maxPrice))
+        .sort(eventSort);
+
+      renderCards(filtered);
+      renderCalendar(filtered);
+      setView(state.view);
+
+      const countEl = document.getElementById('result-count');
+      if (countEl) {
+        const monthText = state.month === 'all' ? 'All upcoming' : monthLabel(state.month);
+        const ageText = state.age === 'all' ? 'All ages' : state.age;
+        const categoryText = state.category === 'all' ? 'All categories' : state.category;
+        const locationText = state.location === 'all' ? 'All locations' : state.location;
+        const priceText = priceFilterLabel(state.priceMode, state.maxPrice);
+        countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText} - ${locationText} - ${priceText}`;
+      }
+    }
+
+    const state = {
+      age: 'all',
+      category: 'all',
+      month: 'all',
+      location: 'all',
+      priceMode: 'all',
+      maxPrice: null,
+      view: 'cards',
+    };
 
     document.querySelectorAll('#age-filters .filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#age-filters .filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.age = btn.dataset.age;
-        render(state.age, state.category, state.month, state.location);
+        renderAll();
       });
     });
 
@@ -661,14 +803,17 @@ HTML_TEMPLATE = """<!doctype html>
         document.querySelectorAll('#category-filters .filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.category = btn.dataset.category;
-        render(state.age, state.category, state.month, state.location);
+        renderAll();
       });
     });
 
     setupMonthFilter();
     setupLocationFilter();
+    setupPriceFilters();
+    setupViewToggle();
     setupStats();
-    render(state.age, state.category, state.month, state.location);
+    renderFeatured();
+    renderAll();
   </script>
 </body>
 </html>
@@ -680,18 +825,12 @@ ABOUT_TEMPLATE = """<!doctype html>
   <meta charset=\"utf-8\" />
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
   <title>About - __SITE_TITLE__</title>
+  <meta name=\"description\" content=\"How this event aggregator works, what it includes, and where it can miss.\" />
   <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />
   <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />
   <link href=\"https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap\" rel=\"stylesheet\" />
   <style>
-    :root {
-      --bg: #f5f2e9;
-      --card: #fffdf7;
-      --ink: #23262f;
-      --muted: #5b6376;
-      --line: #d7d1c0;
-      --accent: #0f766e;
-    }
+    :root { --bg:#f5f2e9; --card:#fffdf7; --ink:#23262f; --muted:#5b6376; --line:#d7d1c0; --accent:#0f766e; }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'Space Grotesk', system-ui, sans-serif; color: var(--ink); background: linear-gradient(180deg, var(--bg) 0%, #f8f5ee 100%); }
     .shell { max-width: 920px; margin: 0 auto; padding: 28px 18px 70px; }
@@ -714,13 +853,23 @@ ABOUT_TEMPLATE = """<!doctype html>
     </div>
     <div class=\"card\">
       <h1>About This Feed</h1>
-      <p>This project aggregates public event listings in Singapore into one filterable feed with age, category, month, and location filters.</p>
+      <p>This project aggregates public event listings in Singapore into one filterable feed with age, category, month, location, and price filters.</p>
 
       <h2>Current Coverage</h2>
       <p>Configured sources: __SCRAPED_PLACES__.</p>
       <p>Sources with events in the latest build: __SOURCE_SUMMARY__.</p>
+      <p>Raw events fetched: <code>__RAW_COUNT__</code>. Deduped events published: <code>__DEDUPED_COUNT__</code>.</p>
 
-      <h2>How Dates Are Displayed</h2>
+      <h2>What Was Added</h2>
+      <ul>
+        <li>Featured events section for the current week.</li>
+        <li>Card and calendar views for easier scanning.</li>
+        <li>Price filters (<code>Free only</code> and <code>Under S$X</code>).</li>
+        <li>Canonical dedupe to collapse duplicate language variants.</li>
+        <li>Pre-rendered event detail pages for sharing and indexing.</li>
+      </ul>
+
+      <h2>Date Handling</h2>
       <ul>
         <li><code>On ...</code> for single-date events.</li>
         <li><code>Runs ... to ...</code> when a clear start and end date are found.</li>
@@ -728,16 +877,10 @@ ABOUT_TEMPLATE = """<!doctype html>
         <li><code>Date TBC</code> when source pages do not provide parseable dates.</li>
       </ul>
 
-      <h2>Age Logic</h2>
-      <ul>
-        <li>Recognizes year and month formats, including ranges like <code>16-20 months</code>.</li>
-        <li>UI buckets remain <code>0-5</code>, <code>6-12</code>, and <code>13-17</code> for consistent filtering.</li>
-      </ul>
-
       <h2>Limitations</h2>
       <ul>
-        <li>No official APIs are available for some venues, so extraction depends on page structure.</li>
-        <li>Listings can change quickly and may lag until the next scheduled refresh.</li>
+        <li>Some venues have no stable public API, so scraping depends on page structure.</li>
+        <li>Listings can change quickly and may lag until the next refresh cycle.</li>
       </ul>
     </div>
   </div>
@@ -746,15 +889,326 @@ ABOUT_TEMPLATE = """<!doctype html>
 """
 
 
-def load_events(path: Path) -> List[dict]:
+DETAIL_TEMPLATE = """<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>__TITLE__ | __SITE_TITLE__</title>
+  <meta name=\"description\" content=\"__DESCRIPTION__\" />
+  <link rel=\"canonical\" href=\"__CANONICAL__\" />
+  <meta property=\"og:title\" content=\"__TITLE__\" />
+  <meta property=\"og:description\" content=\"__DESCRIPTION__\" />
+  <meta property=\"og:type\" content=\"article\" />
+  <meta property=\"og:url\" content=\"__CANONICAL__\" />
+  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />
+  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />
+  <link href=\"https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap\" rel=\"stylesheet\" />
+  <style>
+    :root { --bg:#f5f2e9; --card:#fffdf7; --ink:#23262f; --muted:#5b6376; --line:#d7d1c0; --accent:#0f766e; --pill:#e2f3f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Space Grotesk', system-ui, sans-serif; color: var(--ink); background: linear-gradient(180deg, var(--bg) 0%, #f8f5ee 100%); }
+    .shell { max-width: 900px; margin: 0 auto; padding: 28px 18px 70px; }
+    .topbar { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+    .topbar a { text-decoration: none; color: var(--muted); font-weight: 600; }
+    .card { margin-top: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+    h1 { margin: 0; font-family: 'Fraunces', serif; font-size: clamp(26px, 4vw, 38px); line-height: 1.15; }
+    .muted { color: var(--muted); }
+    .meta { margin-top: 12px; display: grid; gap: 8px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pill { background: var(--pill); border: 1px solid #c3e8e3; color: var(--accent); border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 600; }
+    .links { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; text-decoration: none; color: var(--ink); font-weight: 600; background: #fff; }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class=\"shell\">
+    <div class=\"topbar\">
+      <a href=\"../index.html\">Back to listings</a>
+      <a href=\"../about.html\">About</a>
+    </div>
+    <article class=\"card\">
+      <h1>__TITLE__</h1>
+      <div class=\"muted\">Source: __SOURCE__</div>
+      <div class=\"meta\">
+        <div><strong>Date:</strong> __DATE_LABEL__</div>
+        <div><strong>Venue:</strong> __VENUE__</div>
+        <div><strong>Price:</strong> __PRICE__</div>
+        <div><strong>Age:</strong> __AGE__</div>
+        <div><strong>Categories:</strong> __CATEGORIES__</div>
+      </div>
+      <div class=\"row\">__PILLS__</div>
+      <div class=\"links\">
+        <a class=\"btn primary\" href=\"__SOURCE_URL__\" target=\"_blank\" rel=\"noopener\">Open official listing</a>
+        <a class=\"btn\" href=\"../index.html\">Browse more events</a>
+      </div>
+    </article>
+  </div>
+</body>
+</html>
+"""
+
+
+def load_events(path: Path) -> List[Dict[str, Any]]:
     with path.open() as f:
-        return json.load(f)
+        data = json.load(f)
+    return data if isinstance(data, list) else []
 
 
-def source_summary(events: List[dict]) -> str:
-    seen: list[str] = []
+def _parse_dt(iso: Optional[str]) -> Optional[datetime]:
+    if not iso or not isinstance(iso, str):
+        return None
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _to_int_or_none(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    if isinstance(value, str):
+        txt = value.strip()
+        if re.fullmatch(r"-?\d+", txt):
+            return int(txt)
+    return None
+
+
+def _normalize_categories(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    out: List[str] = []
+    seen: set[str] = set()
+    for item in value:
+        label = str(item).strip()
+        if not label:
+            continue
+        key = label.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(label)
+    return out
+
+
+def _normalize_age_ranges(value: Any) -> List[Tuple[Optional[int], Optional[int]]]:
+    if not isinstance(value, list):
+        return []
+    out: List[Tuple[Optional[int], Optional[int]]] = []
+    seen: set[Tuple[Optional[int], Optional[int]]] = set()
+    for item in value:
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
+            continue
+        lo = _to_int_or_none(item[0])
+        hi = _to_int_or_none(item[1])
+        key = (lo, hi)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
+def _summarize_age_ranges(ranges: List[Tuple[Optional[int], Optional[int]]]) -> Tuple[Optional[int], Optional[int]]:
+    if not ranges:
+        return None, None
+    lows = [lo for lo, _ in ranges if lo is not None]
+    highs = [hi for _, hi in ranges if hi is not None]
+    lo = min(lows) if lows else None
+    hi = None if any(hi is None for _, hi in ranges) else (max(highs) if highs else None)
+    if lo is not None and hi is not None and lo > hi:
+        lo, hi = hi, lo
+    return lo, hi
+
+
+def _canonical_event_url(url: str) -> str:
+    if not url or not isinstance(url, str):
+        return ""
+    try:
+        parts = urlsplit(url.strip())
+    except ValueError:
+        return url.strip()
+    if not parts.scheme or not parts.netloc:
+        return url.strip()
+    segments = [seg for seg in parts.path.split("/") if seg]
+    if segments and re.fullmatch(r"[a-z]{2}(?:-[a-z]{2})?", segments[0], flags=re.IGNORECASE):
+        segments = segments[1:]
+    path = "/" + "/".join(segments)
+    if path != "/":
+        path = path.rstrip("/")
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path or "/", "", ""))
+
+
+def _normalize_title(title: Any) -> str:
+    txt = str(title or "").strip().lower()
+    txt = re.sub(r"\s+", " ", txt)
+    txt = re.sub(r"[^a-z0-9 ]+", "", txt)
+    return txt.strip()
+
+
+def _event_quality(ev: Dict[str, Any]) -> int:
+    score = 0
+    for field in ["start", "end", "venue", "price", "raw_date", "url"]:
+        if ev.get(field):
+            score += 2
+    if ev.get("age_min") is not None:
+        score += 1
+    if ev.get("age_max") is not None:
+        score += 1
+    score += len(ev.get("categories") or [])
+    score += len(ev.get("age_ranges") or [])
+    return score
+
+
+def _event_signature(ev: Dict[str, Any]) -> str:
+    source = str(ev.get("source") or "").strip().lower()
+    title = _normalize_title(ev.get("title"))
+    start = str(ev.get("start") or "").strip()
+    raw_date = str(ev.get("raw_date") or "").strip()
+    return f"{source}|{title}|{start}|{raw_date}"
+
+
+def _merge_events(base: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
+    best = base if _event_quality(base) >= _event_quality(incoming) else incoming
+    other = incoming if best is base else base
+    merged = dict(best)
+
+    for key, value in other.items():
+        if merged.get(key) in (None, "", [], {}):
+            merged[key] = value
+
+    base_start = _parse_dt(base.get("start"))
+    inc_start = _parse_dt(incoming.get("start"))
+    if base_start and inc_start:
+        merged["start"] = min(base_start, inc_start).isoformat()
+    else:
+        merged["start"] = merged.get("start") or base.get("start") or incoming.get("start")
+
+    base_end = _parse_dt(base.get("end"))
+    inc_end = _parse_dt(incoming.get("end"))
+    if base_end and inc_end:
+        merged["end"] = max(base_end, inc_end).isoformat()
+    else:
+        merged["end"] = merged.get("end") or base.get("end") or incoming.get("end")
+
+    ranges = _normalize_age_ranges(base.get("age_ranges")) + _normalize_age_ranges(incoming.get("age_ranges"))
+    if base.get("age_min") is not None or base.get("age_max") is not None:
+        ranges.append((_to_int_or_none(base.get("age_min")), _to_int_or_none(base.get("age_max"))))
+    if incoming.get("age_min") is not None or incoming.get("age_max") is not None:
+        ranges.append((_to_int_or_none(incoming.get("age_min")), _to_int_or_none(incoming.get("age_max"))))
+    dedup_ranges = []
+    seen_ranges = set()
+    for r in ranges:
+        if r in seen_ranges:
+            continue
+        seen_ranges.add(r)
+        dedup_ranges.append(r)
+    if dedup_ranges:
+        merged["age_ranges"] = [[lo, hi] for lo, hi in dedup_ranges]
+        lo, hi = _summarize_age_ranges(dedup_ranges)
+        merged["age_min"] = lo
+        merged["age_max"] = hi
+
+    categories = _normalize_categories(base.get("categories")) + _normalize_categories(incoming.get("categories"))
+    if categories:
+        uniq = []
+        seen_cat = set()
+        for cat in categories:
+            key = cat.casefold()
+            if key in seen_cat:
+                continue
+            seen_cat.add(key)
+            uniq.append(cat)
+        merged["categories"] = uniq
+
+    canonical = _canonical_event_url(merged.get("url") or "")
+    if canonical:
+        merged["url"] = canonical
+
+    return merged
+
+
+def _event_sort_key(ev: Dict[str, Any]) -> Tuple[int, datetime, str]:
+    dt = _parse_dt(ev.get("start"))
+    if dt is None:
+        return (1, datetime.max.replace(tzinfo=pytz.UTC), str(ev.get("title") or "").lower())
+    return (0, dt, str(ev.get("title") or "").lower())
+
+
+def dedupe_and_enrich_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for row in events:
+        if not isinstance(row, dict):
+            continue
+        ev = dict(row)
+        ev["title"] = str(ev.get("title") or "").strip() or "Untitled Event"
+        ev["source"] = str(ev.get("source") or "").strip().lower()
+        canonical = _canonical_event_url(str(ev.get("url") or ""))
+        if canonical:
+            ev["url"] = canonical
+        ev["categories"] = _normalize_categories(ev.get("categories"))
+        ranges = _normalize_age_ranges(ev.get("age_ranges"))
+        if ranges:
+            ev["age_ranges"] = [[lo, hi] for lo, hi in ranges]
+            lo, hi = _summarize_age_ranges(ranges)
+            if ev.get("age_min") is None:
+                ev["age_min"] = lo
+            if ev.get("age_max") is None:
+                ev["age_max"] = hi
+        normalized.append(ev)
+
+    by_primary: Dict[str, Dict[str, Any]] = {}
+    for ev in normalized:
+        canonical = _canonical_event_url(ev.get("url") or "")
+        key = canonical or _event_signature(ev)
+        if key in by_primary:
+            by_primary[key] = _merge_events(by_primary[key], ev)
+        else:
+            by_primary[key] = ev
+
+    by_signature: Dict[str, Dict[str, Any]] = {}
+    for ev in by_primary.values():
+        sig = _event_signature(ev)
+        if sig in by_signature:
+            by_signature[sig] = _merge_events(by_signature[sig], ev)
+        else:
+            by_signature[sig] = ev
+
+    deduped = sorted(by_signature.values(), key=_event_sort_key)
+
+    used_paths: set[str] = set()
+    for ev in deduped:
+        title_slug = re.sub(r"[^a-z0-9]+", "-", str(ev.get("title") or "untitled").lower()).strip("-") or "event"
+        title_slug = title_slug[:80]
+        start_tag = "tbc"
+        dt = _parse_dt(ev.get("start"))
+        if dt:
+            start_tag = dt.astimezone(SG_TZ).strftime("%Y%m%d")
+        digest_base = f"{ev.get('url','')}|{ev.get('source','')}|{ev.get('title','')}|{ev.get('start','')}"
+        digest = hashlib.sha1(digest_base.encode("utf-8")).hexdigest()[:8]
+        filename = f"{title_slug}-{start_tag}-{digest}.html"
+        detail_path = f"events/{filename}"
+        idx = 2
+        while detail_path in used_paths:
+            detail_path = f"events/{title_slug}-{start_tag}-{digest}-{idx}.html"
+            idx += 1
+        used_paths.add(detail_path)
+        ev["detail_url"] = detail_path
+
+    return deduped
+
+
+def source_summary(events: List[Dict[str, Any]]) -> str:
+    seen: List[str] = []
     for ev in events:
-        src = (ev.get("source") or "").strip().lower()
+        src = str(ev.get("source") or "").strip().lower()
         if src and src not in seen:
             seen.append(src)
     labels = [SOURCE_LABELS.get(src, src.title()) for src in seen]
@@ -766,8 +1220,50 @@ def scraped_places_summary() -> str:
     return ", ".join(labels)
 
 
-def render_html(events: List[dict]) -> str:
-    # Escape HTML-significant characters to avoid accidentally closing script tags.
+def _event_date_label(ev: Dict[str, Any]) -> str:
+    start = _parse_dt(ev.get("start"))
+    end = _parse_dt(ev.get("end"))
+
+    def fmt(d: datetime) -> str:
+        local = d.astimezone(SG_TZ)
+        if local.hour == 0 and local.minute == 0:
+            return local.strftime("%d %b %Y")
+        return local.strftime("%d %b %Y %I:%M %p")
+
+    if start and end:
+        s = start.astimezone(SG_TZ)
+        e = end.astimezone(SG_TZ)
+        if s.date() == e.date():
+            return f"On {fmt(start)}"
+        return f"Runs {fmt(start)} to {fmt(end)}"
+    if start:
+        return f"From {fmt(start)}"
+    raw = str(ev.get("raw_date") or "").strip()
+    return f"Dates: {raw}" if raw else "Date TBC"
+
+
+def _age_label(ev: Dict[str, Any]) -> str:
+    ranges = _normalize_age_ranges(ev.get("age_ranges"))
+    if not ranges:
+        lo = _to_int_or_none(ev.get("age_min"))
+        hi = _to_int_or_none(ev.get("age_max"))
+        ranges = [(lo, hi)] if lo is not None or hi is not None else []
+    if not ranges:
+        return "Age not specified"
+    labels = []
+    for lo, hi in ranges:
+        if lo is not None and hi is not None:
+            labels.append(f"{lo}-{hi}")
+        elif lo is not None:
+            labels.append(f"{lo}+")
+        elif hi is not None:
+            labels.append(f"Up to {hi}")
+        else:
+            labels.append("All ages")
+    return ", ".join(labels)
+
+
+def render_html(events: List[Dict[str, Any]]) -> str:
     events_json = (
         json.dumps(events)
         .replace("<", "\\u003c")
@@ -776,6 +1272,7 @@ def render_html(events: List[dict]) -> str:
     )
     return (
         HTML_TEMPLATE.replace("__SITE_TITLE__", SITE_TITLE)
+        .replace("__SITE_DESC__", SITE_DESC)
         .replace("__SCRAPED_PLACES__", scraped_places_summary())
         .replace("__SOURCE_SUMMARY__", source_summary(events))
         .replace("__UPDATED_AT__", datetime.now(tz=SG_TZ).strftime("%d %b %Y, %H:%M SGT"))
@@ -784,35 +1281,77 @@ def render_html(events: List[dict]) -> str:
     )
 
 
-def render_about(events: List[dict]) -> str:
+def render_about(events: List[Dict[str, Any]], raw_count: int) -> str:
     return (
         ABOUT_TEMPLATE.replace("__SITE_TITLE__", SITE_TITLE)
         .replace("__SCRAPED_PLACES__", scraped_places_summary())
         .replace("__SOURCE_SUMMARY__", source_summary(events))
+        .replace("__RAW_COUNT__", str(raw_count))
+        .replace("__DEDUPED_COUNT__", str(len(events)))
     )
 
 
-def render_rss(events: List[dict]) -> str:
+def render_event_page(ev: Dict[str, Any]) -> str:
+    title = escape(str(ev.get("title") or "Untitled Event"))
+    source = escape(SOURCE_LABELS.get(str(ev.get("source") or ""), str(ev.get("source") or "Unknown source").title()))
+    source_url = escape(str(ev.get("url") or "#"))
+    date_label = escape(_event_date_label(ev))
+    venue = escape(str(ev.get("venue") or "Not specified"))
+    price = escape(str(ev.get("price") or "Not specified"))
+    age = escape(_age_label(ev))
+    categories = ", ".join(_normalize_categories(ev.get("categories"))) or "Uncategorized"
+    categories = escape(categories)
+    canonical = escape(BASE_URL.rstrip("/") + "/" + str(ev.get("detail_url") or ""))
+
+    desc_parts = [
+        str(ev.get("venue") or "").strip(),
+        str(ev.get("price") or "").strip(),
+        _age_label(ev),
+        ", ".join(_normalize_categories(ev.get("categories"))),
+        _event_date_label(ev),
+    ]
+    description = escape(" | ".join([p for p in desc_parts if p]))
+
+    pills = []
+    for cat in _normalize_categories(ev.get("categories")):
+        pills.append(f'<span class="pill">{escape(cat)}</span>')
+    pills.append(f'<span class="pill">{source}</span>')
+    pills_html = "".join(pills)
+
+    return (
+        DETAIL_TEMPLATE.replace("__TITLE__", title)
+        .replace("__SITE_TITLE__", SITE_TITLE)
+        .replace("__DESCRIPTION__", description)
+        .replace("__CANONICAL__", canonical)
+        .replace("__SOURCE__", source)
+        .replace("__DATE_LABEL__", date_label)
+        .replace("__VENUE__", venue)
+        .replace("__PRICE__", price)
+        .replace("__AGE__", age)
+        .replace("__CATEGORIES__", categories)
+        .replace("__PILLS__", pills_html)
+        .replace("__SOURCE_URL__", source_url)
+    )
+
+
+def render_rss(events: List[Dict[str, Any]]) -> str:
     now = datetime.now(tz=SG_TZ)
     items = []
     for ev in events:
-        start = ev.get("start") or ""
-        title = ev.get("title", "Event")
-        link = ev.get("url", "")
-        if ev.get("age_min") is not None and ev.get("age_max") is not None:
-            age_text = f"Ages {ev.get('age_min')}-{ev.get('age_max')}"
-        elif ev.get("age_min") is not None:
-            age_text = f"Ages {ev.get('age_min')}+"
-        else:
-            age_text = ""
-        category_text = ", ".join(ev.get("categories") or [])
-        desc_parts = [ev.get("venue"), ev.get("price"), age_text, category_text]
-        description = " | ".join([p for p in desc_parts if p])
+        start = str(ev.get("start") or "")
+        title = escape(str(ev.get("title") or "Event"))
+        detail_url = str(ev.get("detail_url") or "").strip()
+        link = BASE_URL.rstrip("/") + "/" + detail_url if detail_url else str(ev.get("url") or "")
+        age = _age_label(ev)
+        category_text = ", ".join(_normalize_categories(ev.get("categories")))
+        desc_parts = [str(ev.get("venue") or ""), str(ev.get("price") or ""), age, category_text]
+        description = escape(" | ".join([p for p in desc_parts if p]))
         items.append(
             f"""
     <item>
       <title>{title}</title>
       <link>{link}</link>
+      <guid>{link}</guid>
       <pubDate>{start}</pubDate>
       <description><![CDATA[{description}]]></description>
     </item>"""
@@ -833,13 +1372,24 @@ def render_rss(events: List[dict]) -> str:
 
 def build(output_dir: Path = Path("site")):
     data_path = Path("data/events.json")
-    data = load_events(data_path) if data_path.exists() else []
+    raw_data = load_events(data_path) if data_path.exists() else []
+    events = dedupe_and_enrich_events(raw_data)
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "index.html").write_text(render_html(data), encoding="utf-8")
-    (output_dir / "about.html").write_text(render_about(data), encoding="utf-8")
-    (output_dir / "rss.xml").write_text(render_rss(data), encoding="utf-8")
-    (output_dir / "events.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print(f"Built site with {len(data)} events -> {output_dir}")
+    (output_dir / "index.html").write_text(render_html(events), encoding="utf-8")
+    (output_dir / "about.html").write_text(render_about(events, len(raw_data)), encoding="utf-8")
+    (output_dir / "rss.xml").write_text(render_rss(events), encoding="utf-8")
+    (output_dir / "events.json").write_text(json.dumps(events, indent=2), encoding="utf-8")
+
+    for ev in events:
+        detail_url = str(ev.get("detail_url") or "").strip()
+        if not detail_url:
+            continue
+        out_path = output_dir / detail_url
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(render_event_page(ev), encoding="utf-8")
+
+    print(f"Built site with {len(events)} events ({len(raw_data)} raw) -> {output_dir}")
 
 
 def main():

@@ -58,94 +58,272 @@ HTML_TEMPLATE = """<!doctype html>
   <title>__SITE_TITLE__</title>
   <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />
   <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />
-  <link href=\"https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap\" rel=\"stylesheet\" />
+  <link href=\"https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap\" rel=\"stylesheet\" />
   <style>
     :root {
-      --bg: #0b1021;
-      --card: rgba(255,255,255,0.06);
-      --accent: #35d7a7;
-      --text: #f6f7fb;
-      --muted: #b4b7c5;
-      --pill: rgba(53,215,167,0.12);
+      --bg: #f5f2e9;
+      --bg-alt: #ece6d7;
+      --card: #fffdf7;
+      --ink: #23262f;
+      --muted: #5b6376;
+      --accent: #0f766e;
+      --accent-2: #ad5b27;
+      --line: #d7d1c0;
+      --pill: #e2f3f1;
+      --shadow: 0 16px 36px rgba(31, 36, 48, 0.08);
     }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; background: radial-gradient(120% 120% at 20% 20%, #10203e 0%, #0b1021 45%, #0b0f1c 100%); color: var(--text); }
-    .shell { max-width: 1080px; margin: 0 auto; padding: 48px 20px 72px; }
-    header { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
-    h1 { margin: 0; font-size: 32px; letter-spacing: -0.5px; }
-    .muted { color: var(--muted); font-size: 15px; line-height: 1.6; }
-    .intro { margin-top: 4px; font-size: 14px; }
+    body {
+      margin: 0;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #fce9c9 0%, rgba(252, 233, 201, 0) 70%),
+        radial-gradient(900px 420px at 90% 0%, #d8f1ec 0%, rgba(216, 241, 236, 0) 75%),
+        linear-gradient(180deg, var(--bg) 0%, #f8f5ee 100%);
+    }
+    .shell { max-width: 1180px; margin: 0 auto; padding: 28px 18px 72px; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { font-weight: 700; letter-spacing: 0.1px; color: var(--ink); text-decoration: none; }
+    .nav { display: flex; gap: 14px; flex-wrap: wrap; }
+    .nav a { color: var(--muted); text-decoration: none; font-weight: 600; }
+    .nav a:hover { color: var(--ink); }
+    .hero {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+    .hero-card {
+      background: linear-gradient(145deg, #fffef8 0%, #f5f7fb 100%);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-family: 'Fraunces', serif;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.1;
+      letter-spacing: -0.4px;
+    }
+    .subtitle {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      max-width: 70ch;
+    }
+    .hero-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .hero-links a {
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      padding: 8px 12px;
+      text-decoration: none;
+      color: var(--ink);
+      font-weight: 600;
+      background: #fff;
+    }
+    .hero-links a.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      padding: 12px;
+    }
+    .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat .value { margin-top: 6px; font-size: 24px; font-weight: 700; line-height: 1.1; }
+    .stat .tiny { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .muted { color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .intro-block {
+      margin-top: 14px;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+    }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
-    .card { background: var(--card); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 16px 16px 18px; backdrop-filter: blur(4px); display: flex; flex-direction: column; gap: 10px; }
-    .title { font-weight: 700; font-size: 18px; margin: 0; color: #fff; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px 16px 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: transform 140ms ease, box-shadow 140ms ease;
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 18px 34px rgba(31, 36, 48, 0.12); }
+    .title { font-weight: 700; font-size: 18px; margin: 0; color: var(--ink); text-decoration: none; }
     .meta { display: flex; flex-direction: column; gap: 6px; }
     .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .pill { background: var(--pill); color: var(--accent); padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pill {
+      background: var(--pill);
+      color: var(--accent);
+      border: 1px solid #c3e8e3;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .pill-source {
+      background: #fcefe5;
+      color: var(--accent-2);
+      border-color: #f2d1bb;
+    }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
-    .filter-groups { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
-    .filter-group .muted { font-size: 13px; }
-    .month-select { border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; padding: 8px 12px; border-radius: 10px; font-weight: 600; }
-    .month-select option { color: #111827; }
-    .filter-btn { border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; }
-    .filter-btn.active { background: var(--accent); color: #0b1021; border-color: var(--accent); }
-    .count { margin-top: 8px; }
-    .signup { margin-top: 22px; padding: 16px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 12px; }
-    footer { margin-top: 32px; color: var(--muted); font-size: 13px; }
+    .panel {
+      margin-top: 18px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .filter-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 2px; }
+    .filter-group .muted { font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .month-select {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-weight: 600;
+      min-width: 200px;
+    }
+    .filter-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .count { margin-top: 10px; }
+    .signup {
+      margin-top: 22px;
+      padding: 16px;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.6);
+    }
+    footer { margin-top: 32px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+      .filter-groups { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
   <div class=\"shell\">
-    <header>
-      <div>
-        <h1>__SITE_TITLE__</h1>
-        <div class=\"muted\">Weekly social and cultural picks for all ages. Updated Mondays 9:00 AM SGT.</div>
-        <div class=\"muted intro\">Tracking: __SCRAPED_PLACES__.</div>
-        <div class=\"muted intro\">This run includes events from: __SOURCE_SUMMARY__.</div>
-      </div>
-      <div class=\"muted\"><a href=\"rss.xml\">RSS</a></div>
-    </header>
-
-    <div class=\"filter-groups\">
-      <div class=\"filter-group\">
-        <div class=\"muted\">Age</div>
-        <div class=\"filters\" id=\"age-filters\">
-          <button class=\"filter-btn active\" data-age=\"all\">All ages</button>
-          <button class=\"filter-btn\" data-age=\"0-5\">0-5</button>
-          <button class=\"filter-btn\" data-age=\"6-12\">6-12</button>
-          <button class=\"filter-btn\" data-age=\"13-17\">13-17</button>
-        </div>
-      </div>
-      <div class=\"filter-group\">
-        <div class=\"muted\">Category</div>
-        <div class=\"filters\" id=\"category-filters\">
-          <button class=\"filter-btn active\" data-category=\"all\">All categories</button>
-          <button class=\"filter-btn\" data-category=\"Theatre\">Theatre</button>
-          <button class=\"filter-btn\" data-category=\"Opera\">Opera</button>
-          <button class=\"filter-btn\" data-category=\"Orchestra\">Orchestra</button>
-          <button class=\"filter-btn\" data-category=\"Cinema\">Cinema</button>
-          <button class=\"filter-btn\" data-category=\"Dance\">Dance</button>
-          <button class=\"filter-btn\" data-category=\"Music\">Music</button>
-          <button class=\"filter-btn\" data-category=\"Workshop\">Workshop</button>
-          <button class=\"filter-btn\" data-category=\"Exhibition\">Exhibition</button>
-        </div>
-      </div>
-      <div class=\"filter-group\">
-        <div class=\"muted\">Month</div>
-        <div class=\"filters\" id=\"month-filters\">
-          <select id=\"month-select\" class=\"month-select\"></select>
-          <button class=\"filter-btn\" id=\"month-this\">This month</button>
-        </div>
-      </div>
-      <div class=\"filter-group\">
-        <div class=\"muted\">Location</div>
-        <div class=\"filters\" id=\"location-filters\">
-          <select id=\"location-select\" class=\"month-select\"></select>
-        </div>
+    <div class=\"topbar\">
+      <a class=\"brand\" href=\"index.html\">Singapore Social Events</a>
+      <div class=\"nav\">
+        <a href=\"index.html\">Browse</a>
+        <a href=\"about.html\">About</a>
+        <a href=\"rss.xml\">RSS</a>
       </div>
     </div>
-    <div id=\"result-count\" class=\"muted count\"></div>
+
+    <section class=\"hero\">
+      <div class=\"hero-card\">
+        <h1>__SITE_TITLE__</h1>
+        <div class=\"subtitle\">Weekly social and cultural listings across theatre, music, museums, cinema, and festivals in Singapore. Refreshes every Monday at 9:00 AM SGT.</div>
+        <div class=\"hero-links\">
+          <a class=\"primary\" href=\"#filters\">Start Filtering</a>
+          <a href=\"about.html\">How This Works</a>
+          <a href=\"rss.xml\">Subscribe via RSS</a>
+        </div>
+        <div class=\"intro-block muted\">
+          Tracking: __SCRAPED_PLACES__.<br />
+          This run includes events from: __SOURCE_SUMMARY__.
+        </div>
+      </div>
+      <div class=\"hero-card\">
+        <div class=\"stats\">
+          <div class=\"stat\">
+            <div class=\"label\">Events In Feed</div>
+            <div class=\"value\" id=\"stat-total\">0</div>
+          </div>
+          <div class=\"stat\">
+            <div class=\"label\">Upcoming</div>
+            <div class=\"value\" id=\"stat-upcoming\">0</div>
+          </div>
+          <div class=\"stat\">
+            <div class=\"label\">Sources</div>
+            <div class=\"value\" id=\"stat-sources\">0</div>
+          </div>
+          <div class=\"stat\">
+            <div class=\"label\">Last Build</div>
+            <div class=\"tiny\">__UPDATED_AT__</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class=\"panel\" id=\"filters\">
+      <div class=\"filter-groups\">
+        <div class=\"filter-group\">
+          <div class=\"muted\">Age</div>
+          <div class=\"filters\" id=\"age-filters\">
+            <button class=\"filter-btn active\" data-age=\"all\">All ages</button>
+            <button class=\"filter-btn\" data-age=\"0-5\">0-5</button>
+            <button class=\"filter-btn\" data-age=\"6-12\">6-12</button>
+            <button class=\"filter-btn\" data-age=\"13-17\">13-17</button>
+          </div>
+        </div>
+        <div class=\"filter-group\">
+          <div class=\"muted\">Category</div>
+          <div class=\"filters\" id=\"category-filters\">
+            <button class=\"filter-btn active\" data-category=\"all\">All categories</button>
+            <button class=\"filter-btn\" data-category=\"Theatre\">Theatre</button>
+            <button class=\"filter-btn\" data-category=\"Opera\">Opera</button>
+            <button class=\"filter-btn\" data-category=\"Orchestra\">Orchestra</button>
+            <button class=\"filter-btn\" data-category=\"Cinema\">Cinema</button>
+            <button class=\"filter-btn\" data-category=\"Dance\">Dance</button>
+            <button class=\"filter-btn\" data-category=\"Music\">Music</button>
+            <button class=\"filter-btn\" data-category=\"Workshop\">Workshop</button>
+            <button class=\"filter-btn\" data-category=\"Exhibition\">Exhibition</button>
+          </div>
+        </div>
+        <div class=\"filter-group\">
+          <div class=\"muted\">Month</div>
+          <div class=\"filters\" id=\"month-filters\">
+            <select id=\"month-select\" class=\"month-select\"></select>
+            <button class=\"filter-btn\" id=\"month-this\">This month</button>
+          </div>
+        </div>
+        <div class=\"filter-group\">
+          <div class=\"muted\">Location</div>
+          <div class=\"filters\" id=\"location-filters\">
+            <select id=\"location-select\" class=\"month-select\"></select>
+          </div>
+        </div>
+      </div>
+      <div id=\"result-count\" class=\"muted count\"></div>
+    </div>
 
     <div class=\"signup\">
       <div class=\"muted\" style=\"margin-bottom:8px;\">Get this list by email (Kit):</div>
@@ -155,7 +333,7 @@ HTML_TEMPLATE = """<!doctype html>
     <div id=\"grid\" class=\"grid\"></div>
 
     <footer>
-      <div>Generated automatically. Sources: __SOURCE_SUMMARY__.</div>
+      <div>Generated automatically from public pages. Sources in this run: __SOURCE_SUMMARY__.</div>
     </footer>
   </div>
   <script>
@@ -410,13 +588,21 @@ HTML_TEMPLATE = """<!doctype html>
     function render(filterAge = 'all', filterCategory = 'all', filterMonth = 'all', filterLocation = 'all') {
       grid.innerHTML = '';
       const filtered = events.filter(ev => matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation));
+      filtered.sort((a, b) => {
+        const aDate = parseDateSafe(a.start);
+        const bDate = parseDateSafe(b.start);
+        if (!aDate && !bDate) return (a.title || '').localeCompare(b.title || '');
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        return aDate - bDate;
+      });
       filtered.forEach(ev => {
           const card = document.createElement('div');
           card.className = 'card';
           const categoryPills = eventCategories(ev).map(cat => `<span class=\"pill\">${cat}</span>`).join('');
           card.innerHTML = `
             <div class=\"pill-row\">
-              <span class=\"pill\">${ev.source}</span>
+              <span class=\"pill pill-source\">${sourceLabel(ev.source)}</span>
               <span class=\"pill\">${bucketLabel(ev)}</span>
               ${categoryPills}
             </div>
@@ -437,6 +623,26 @@ HTML_TEMPLATE = """<!doctype html>
         const locationText = filterLocation === 'all' ? 'All locations' : filterLocation;
         countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText} - ${locationText}`;
       }
+    }
+
+    function setupStats() {
+      const total = events.length;
+      const upcoming = events.filter(ev => {
+        const end = parseDateSafe(ev.end);
+        const start = parseDateSafe(ev.start);
+        const d = end || start;
+        if (!d) return true;
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return d >= today;
+      }).length;
+      const srcCount = new Set(events.map(e => (e.source || '').toLowerCase()).filter(Boolean)).size;
+      const totalEl = document.getElementById('stat-total');
+      const upcomingEl = document.getElementById('stat-upcoming');
+      const srcEl = document.getElementById('stat-sources');
+      if (totalEl) totalEl.textContent = String(total);
+      if (upcomingEl) upcomingEl.textContent = String(upcoming);
+      if (srcEl) srcEl.textContent = String(srcCount);
     }
 
     const state = { age: 'all', category: 'all', month: 'all', location: 'all' };
@@ -461,8 +667,80 @@ HTML_TEMPLATE = """<!doctype html>
 
     setupMonthFilter();
     setupLocationFilter();
+    setupStats();
     render(state.age, state.category, state.month, state.location);
   </script>
+</body>
+</html>
+"""
+
+ABOUT_TEMPLATE = """<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>About - __SITE_TITLE__</title>
+  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\" />
+  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin />
+  <link href=\"https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap\" rel=\"stylesheet\" />
+  <style>
+    :root {
+      --bg: #f5f2e9;
+      --card: #fffdf7;
+      --ink: #23262f;
+      --muted: #5b6376;
+      --line: #d7d1c0;
+      --accent: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Space Grotesk', system-ui, sans-serif; color: var(--ink); background: linear-gradient(180deg, var(--bg) 0%, #f8f5ee 100%); }
+    .shell { max-width: 920px; margin: 0 auto; padding: 28px 18px 70px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+    .topbar a { text-decoration: none; color: var(--muted); font-weight: 600; }
+    .topbar a:hover { color: var(--ink); }
+    .card { margin-top: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+    h1 { margin: 0; font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 38px); }
+    h2 { margin: 18px 0 8px; font-size: 17px; }
+    p, li { color: var(--muted); line-height: 1.65; }
+    ul { padding-left: 18px; margin: 8px 0 0; }
+    code { background: #f1eee5; border-radius: 4px; padding: 1px 5px; }
+  </style>
+</head>
+<body>
+  <div class=\"shell\">
+    <div class=\"topbar\">
+      <a href=\"index.html\">Back to listings</a>
+      <a href=\"rss.xml\">RSS</a>
+    </div>
+    <div class=\"card\">
+      <h1>About This Feed</h1>
+      <p>This project aggregates public event listings in Singapore into one filterable feed with age, category, month, and location filters.</p>
+
+      <h2>Current Coverage</h2>
+      <p>Configured sources: __SCRAPED_PLACES__.</p>
+      <p>Sources with events in the latest build: __SOURCE_SUMMARY__.</p>
+
+      <h2>How Dates Are Displayed</h2>
+      <ul>
+        <li><code>On ...</code> for single-date events.</li>
+        <li><code>Runs ... to ...</code> when a clear start and end date are found.</li>
+        <li><code>From ...</code> when only a start date is available.</li>
+        <li><code>Date TBC</code> when source pages do not provide parseable dates.</li>
+      </ul>
+
+      <h2>Age Logic</h2>
+      <ul>
+        <li>Recognizes year and month formats, including ranges like <code>16-20 months</code>.</li>
+        <li>UI buckets remain <code>0-5</code>, <code>6-12</code>, and <code>13-17</code> for consistent filtering.</li>
+      </ul>
+
+      <h2>Limitations</h2>
+      <ul>
+        <li>No official APIs are available for some venues, so extraction depends on page structure.</li>
+        <li>Listings can change quickly and may lag until the next scheduled refresh.</li>
+      </ul>
+    </div>
+  </div>
 </body>
 </html>
 """
@@ -500,8 +778,17 @@ def render_html(events: List[dict]) -> str:
         HTML_TEMPLATE.replace("__SITE_TITLE__", SITE_TITLE)
         .replace("__SCRAPED_PLACES__", scraped_places_summary())
         .replace("__SOURCE_SUMMARY__", source_summary(events))
+        .replace("__UPDATED_AT__", datetime.now(tz=SG_TZ).strftime("%d %b %Y, %H:%M SGT"))
         .replace("__SOURCE_LABELS_JSON__", json.dumps(SOURCE_LABELS))
         .replace("__EVENTS_JSON__", events_json)
+    )
+
+
+def render_about(events: List[dict]) -> str:
+    return (
+        ABOUT_TEMPLATE.replace("__SITE_TITLE__", SITE_TITLE)
+        .replace("__SCRAPED_PLACES__", scraped_places_summary())
+        .replace("__SOURCE_SUMMARY__", source_summary(events))
     )
 
 
@@ -549,6 +836,7 @@ def build(output_dir: Path = Path("site")):
     data = load_events(data_path) if data_path.exists() else []
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "index.html").write_text(render_html(data), encoding="utf-8")
+    (output_dir / "about.html").write_text(render_about(data), encoding="utf-8")
     (output_dir / "rss.xml").write_text(render_rss(data), encoding="utf-8")
     (output_dir / "events.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(f"Built site with {len(data)} events -> {output_dir}")

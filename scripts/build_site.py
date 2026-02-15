@@ -259,7 +259,7 @@ HTML_TEMPLATE = """<!doctype html>
 
     <div class=\"signup\">
       <div class=\"muted\" style=\"margin-bottom:8px;\">Get this list by email (Kit):</div>
-      <div id=\"kit-embed\">Paste your Kit embed script here once you have the form ID.</div>
+      <div id=\"kit-embed\"><script async data-uid=\"593cc608af\" src=\"https://singaporeculture.kit.com/593cc608af/index.js\"></script></div>
     </div>
 
     <div id=\"grid\" class=\"grid\"></div>

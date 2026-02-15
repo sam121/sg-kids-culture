@@ -204,7 +204,15 @@ HTML_TEMPLATE = """<!doctype html>
     }
     .compact-input::placeholder { color: var(--muted); font-weight: 600; }
     .count { margin-top: 10px; }
-    .signup { margin-top: 22px; padding: 16px; border: 1px dashed var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.6); }
+    .signup {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.72);
+      max-width: 560px;
+    }
+    .signup .muted { font-size: 13px; line-height: 1.45; margin-bottom: 6px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 16px 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; transition: transform 140ms ease, box-shadow 140ms ease; }
     .card:hover { transform: translateY(-2px); box-shadow: 0 18px 34px rgba(31, 36, 48, 0.12); }
@@ -252,6 +260,10 @@ HTML_TEMPLATE = """<!doctype html>
       <div class=\"hero-card\">
         <h1>__SITE_TITLE__</h1>
         <div class=\"subtitle\">A cheerful little culture scout for Singapore: I round up theatre, music, museum and festival plans, then help you filter them fast. Fresh batch lands every Monday at 9:00 AM SGT.</div>
+        <div class=\"signup\">
+          <div class=\"muted\">Get this list by email (Kit):</div>
+          <div id=\"kit-embed\"><script async data-uid=\"593cc608af\" src=\"https://singaporeculture.kit.com/593cc608af/index.js\"></script></div>
+        </div>
         <div class=\"hero-links\">
           <a class=\"primary\" href=\"#filters\">Start Filtering</a>
           <a href=\"about.html\">How This Works</a>
@@ -309,11 +321,6 @@ HTML_TEMPLATE = """<!doctype html>
         </label>
       </div>
       <div id=\"result-count\" class=\"muted count\"></div>
-    </div>
-
-    <div class=\"signup\">
-      <div class=\"muted\" style=\"margin-bottom:8px;\">Get this list by email (Kit):</div>
-      <div id=\"kit-embed\"><script async data-uid=\"593cc608af\" src=\"https://singaporeculture.kit.com/593cc608af/index.js\"></script></div>
     </div>
 
     <div id=\"grid\" class=\"grid\"></div>

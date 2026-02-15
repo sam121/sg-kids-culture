@@ -115,9 +115,11 @@ HTML_TEMPLATE = """<!doctype html>
     .mini-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
     .mini-title { margin: 0; font-weight: 700; font-size: 15px; color: var(--ink); text-decoration: none; }
     .mini-meta { margin-top: 6px; color: var(--muted); font-size: 13px; }
-    .filter-compact { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+    .filter-compact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
     .filter-field { display: flex; flex-direction: column; gap: 4px; }
+    .filter-field-wide { display: flex; flex-direction: column; gap: 6px; grid-column: 1 / -1; }
     .filter-field .muted { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .filter-field-wide .muted { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     .compact-select, .compact-input {
       border: 1px solid var(--line);
       background: #fff;
@@ -129,10 +131,22 @@ HTML_TEMPLATE = """<!doctype html>
       width: 100%;
       min-width: 0;
     }
-    .compact-select[multiple] {
-      min-height: 96px;
-      padding: 4px;
+    .filter-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .filter-chip {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-weight: 600;
       font-size: 13px;
+      line-height: 1.2;
+      cursor: pointer;
+    }
+    .filter-chip.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
     }
     .compact-input::placeholder { color: var(--muted); font-weight: 600; }
     .count { margin-top: 10px; }
@@ -164,7 +178,7 @@ HTML_TEMPLATE = """<!doctype html>
       .compact-select, .compact-input { font-size: 13px; }
       .calendar-grid td { min-height: 108px; height: 108px; }
     }
-    @media (max-width: 640px) {
+    @media (max-width: 820px) {
       .filter-compact { grid-template-columns: 1fr; }
     }
   </style>
@@ -201,29 +215,14 @@ HTML_TEMPLATE = """<!doctype html>
     <div class=\"panel\" id=\"filters\">
       <div class=\"panel-title\">Filters</div>
       <div class=\"filter-compact\">
-        <label class=\"filter-field\">
+        <div class=\"filter-field-wide\">
           <span class=\"muted\">Age</span>
-          <select id=\"age-select\" class=\"compact-select\" multiple size=\"4\">
-            <option value=\"all\">All ages</option>
-            <option value=\"0-5\">0-5</option>
-            <option value=\"6-12\">6-12</option>
-            <option value=\"13-17\">13-17</option>
-          </select>
-        </label>
-        <label class=\"filter-field\">
+          <div id=\"age-chips\" class=\"filter-chip-row\"></div>
+        </div>
+        <div class=\"filter-field-wide\">
           <span class=\"muted\">Category</span>
-          <select id=\"category-select\" class=\"compact-select\" multiple size=\"6\">
-            <option value=\"all\">All categories</option>
-            <option value=\"Theatre\">Theatre</option>
-            <option value=\"Opera\">Opera</option>
-            <option value=\"Orchestra\">Orchestra</option>
-            <option value=\"Cinema\">Cinema</option>
-            <option value=\"Dance\">Dance</option>
-            <option value=\"Music\">Music</option>
-            <option value=\"Workshop\">Workshop</option>
-            <option value=\"Exhibition\">Exhibition</option>
-          </select>
-        </label>
+          <div id=\"category-chips\" class=\"filter-chip-row\"></div>
+        </div>
         <label class=\"filter-field\">
           <span class=\"muted\">Month</span>
           <select id=\"month-select\" class=\"compact-select\"></select>
@@ -235,14 +234,14 @@ HTML_TEMPLATE = """<!doctype html>
             <option value=\"calendar\">Calendar view</option>
           </select>
         </label>
-        <label class=\"filter-field\">
+        <div class=\"filter-field-wide\">
           <span class=\"muted\">Location</span>
-          <select id=\"location-select\" class=\"compact-select\" multiple size=\"6\"></select>
-        </label>
-        <label class=\"filter-field\">
+          <div id=\"location-chips\" class=\"filter-chip-row\"></div>
+        </div>
+        <div class=\"filter-field-wide\">
           <span class=\"muted\">Source</span>
-          <select id=\"source-select\" class=\"compact-select\" multiple size=\"6\"></select>
-        </label>
+          <div id=\"source-chips\" class=\"filter-chip-row\"></div>
+        </div>
         <label class=\"filter-field\">
           <span class=\"muted\">Price Mode</span>
           <select id=\"price-mode-select\" class=\"compact-select\">
@@ -255,7 +254,6 @@ HTML_TEMPLATE = """<!doctype html>
           <input id=\"max-price\" class=\"compact-input\" type=\"number\" min=\"0\" step=\"1\" placeholder=\"e.g. 40\" />
         </label>
       </div>
-      <div class=\"muted\">Tip: hold Cmd/Ctrl to select multiple values in age, category, location, and source.</div>
       <div id=\"result-count\" class=\"muted count\"></div>
     </div>
 
@@ -275,6 +273,23 @@ HTML_TEMPLATE = """<!doctype html>
   <script>
     const events = __EVENTS_JSON__;
     const sourceLabels = __SOURCE_LABELS_JSON__;
+    const ageFilterOptions = [
+      { value: 'all', label: 'All ages' },
+      { value: '0-5', label: '0-5' },
+      { value: '6-12', label: '6-12' },
+      { value: '13-17', label: '13-17' },
+    ];
+    const categoryFilterOptions = [
+      { value: 'all', label: 'All categories' },
+      { value: 'Theatre', label: 'Theatre' },
+      { value: 'Opera', label: 'Opera' },
+      { value: 'Orchestra', label: 'Orchestra' },
+      { value: 'Cinema', label: 'Cinema' },
+      { value: 'Dance', label: 'Dance' },
+      { value: 'Music', label: 'Music' },
+      { value: 'Workshop', label: 'Workshop' },
+      { value: 'Exhibition', label: 'Exhibition' },
+    ];
     const grid = document.getElementById('grid');
     const calendarView = document.getElementById('calendar-view');
 
@@ -504,18 +519,32 @@ HTML_TEMPLATE = """<!doctype html>
       return withoutAll.length > 0 ? withoutAll : ['all'];
     }
 
-    function getMultiSelectValue(select) {
-      return normalizeMultiSelection(Array.from(select.selectedOptions).map(opt => opt.value));
+    function toggleMultiSelection(selectedValues, clickedValue) {
+      if (clickedValue === 'all') return ['all'];
+      const normalized = normalizeMultiSelection(selectedValues);
+      let next = normalized.includes('all') ? [] : normalized.slice();
+      if (next.includes(clickedValue)) {
+        next = next.filter(v => v !== clickedValue);
+      } else {
+        next.push(clickedValue);
+      }
+      return normalizeMultiSelection(next);
     }
 
-    function setMultiSelectValue(select, values) {
-      const normalized = normalizeMultiSelection(values);
-      Array.from(select.options).forEach(opt => {
-        opt.selected = normalized.includes(opt.value);
+    function renderChipGroup(container, options, selectedValues, onChange) {
+      const selected = normalizeMultiSelection(selectedValues);
+      container.innerHTML = options
+        .map(opt => {
+          const active = selected.includes('all') ? opt.value === 'all' : selected.includes(opt.value);
+          return `<button type=\"button\" class=\"filter-chip${active ? ' active' : ''}\" data-value=\"${escapeHtml(opt.value)}\">${escapeHtml(opt.label)}</button>`;
+        })
+        .join('');
+      container.querySelectorAll('.filter-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const next = toggleMultiSelection(selected, btn.dataset.value || 'all');
+          onChange(next);
+        });
       });
-      if (select.selectedOptions.length === 0 && select.options.length > 0) {
-        select.options[0].selected = true;
-      }
     }
 
     function matchesFilter(ev, filterAges, filterCategories, filterMonth, filterLocations, filterSources, filterPriceMode, filterPriceMax) {
@@ -579,54 +608,52 @@ HTML_TEMPLATE = """<!doctype html>
     }
 
     function setupLocationFilter() {
-      const select = document.getElementById('location-select');
-      if (!select) return;
+      const container = document.getElementById('location-chips');
+      if (!container) return;
       const locations = Array.from(new Set(events.map(eventLocation))).filter(Boolean).sort((a, b) => a.localeCompare(b));
-      const opts = [{ value: 'all', label: 'All locations' }].concat(locations.map(loc => ({ value: loc, label: loc })));
-      select.innerHTML = opts.map(o => `<option value=\"${escapeHtml(o.value)}\">${escapeHtml(o.label)}</option>`).join('');
-      setMultiSelectValue(select, state.location);
-      select.addEventListener('change', () => {
-        state.location = getMultiSelectValue(select);
-        setMultiSelectValue(select, state.location);
+      const options = [{ value: 'all', label: 'All locations' }].concat(locations.map(loc => ({ value: loc, label: loc })));
+      const rerender = () => renderChipGroup(container, options, state.location, next => {
+        state.location = next;
+        rerender();
         renderAll();
       });
+      rerender();
     }
 
     function setupSourceFilter() {
-      const select = document.getElementById('source-select');
-      if (!select) return;
+      const container = document.getElementById('source-chips');
+      if (!container) return;
       const sources = Array.from(new Set(events.map(ev => String(ev.source || '').toLowerCase()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-      const opts = [{ value: 'all', label: 'All sources' }].concat(sources.map(src => ({ value: src, label: sourceLabel(src) })));
-      select.innerHTML = opts.map(o => `<option value=\"${escapeHtml(o.value)}\">${escapeHtml(o.label)}</option>`).join('');
-      setMultiSelectValue(select, state.source);
-      select.addEventListener('change', () => {
-        state.source = getMultiSelectValue(select);
-        setMultiSelectValue(select, state.source);
+      const options = [{ value: 'all', label: 'All sources' }].concat(sources.map(src => ({ value: src, label: sourceLabel(src) })));
+      const rerender = () => renderChipGroup(container, options, state.source, next => {
+        state.source = next;
+        rerender();
         renderAll();
       });
+      rerender();
     }
 
     function setupSimpleFilters() {
-      const age = document.getElementById('age-select');
-      const category = document.getElementById('category-select');
+      const age = document.getElementById('age-chips');
+      const category = document.getElementById('category-chips');
       const view = document.getElementById('view-select');
       const priceMode = document.getElementById('price-mode-select');
       const input = document.getElementById('max-price');
       if (age) {
-        setMultiSelectValue(age, state.age);
-        age.addEventListener('change', () => {
-          state.age = getMultiSelectValue(age);
-          setMultiSelectValue(age, state.age);
+        const rerenderAge = () => renderChipGroup(age, ageFilterOptions, state.age, next => {
+          state.age = next;
+          rerenderAge();
           renderAll();
         });
+        rerenderAge();
       }
       if (category) {
-        setMultiSelectValue(category, state.category);
-        category.addEventListener('change', () => {
-          state.category = getMultiSelectValue(category);
-          setMultiSelectValue(category, state.category);
+        const rerenderCategory = () => renderChipGroup(category, categoryFilterOptions, state.category, next => {
+          state.category = next;
+          rerenderCategory();
           renderAll();
         });
+        rerenderCategory();
       }
       if (view) {
         view.value = state.view;

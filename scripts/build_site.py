@@ -109,32 +109,27 @@ HTML_TEMPLATE = """<!doctype html>
     .hero-links a { border-radius: 999px; border: 1px solid var(--line); padding: 8px 12px; text-decoration: none; color: var(--ink); font-weight: 600; background: #fff; }
     .hero-links a.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
     .muted { color: var(--muted); font-size: 14px; line-height: 1.5; }
-    .intro-block { margin-top: 14px; background: rgba(255, 255, 255, 0.65); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
     .panel { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.72); }
     .panel-title { font-weight: 700; letter-spacing: 0.2px; }
     .featured-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-top: 12px; }
     .mini-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
     .mini-title { margin: 0; font-weight: 700; font-size: 15px; color: var(--ink); text-decoration: none; }
     .mini-meta { margin-top: 6px; color: var(--muted); font-size: 13px; }
-    .notes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-    .notes-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
-    .notes-title { font-weight: 700; margin: 0; }
-    .notes-sub { margin-top: 4px; color: var(--muted); font-size: 13px; }
-    .notes-list { margin: 10px 0 0; padding-left: 18px; color: var(--muted); }
-    .notes-list li { margin-top: 7px; line-height: 1.4; }
-    .notes-list a { color: var(--ink); font-weight: 600; }
-    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
-    .filter-tabs { display: flex; gap: 10px; margin-top: 6px; margin-bottom: 10px; }
-    .filter-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 2px; }
-    .filter-group .muted { font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; }
-    .month-select, .price-input { border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 12px; border-radius: 10px; font-weight: 600; min-width: 180px; }
-    .price-wrap { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; background: #fff; }
-    .price-wrap span { color: var(--muted); font-size: 12px; font-weight: 700; }
-    .price-input { min-width: 110px; border: none; padding: 8px 0; }
-    .price-input:focus { outline: none; }
-    .filter-btn { border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; }
-    .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .view-toggle { display: flex; gap: 10px; margin-top: 10px; }
+    .filter-compact { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+    .filter-field { display: flex; flex-direction: column; gap: 4px; }
+    .filter-field .muted { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .compact-select, .compact-input {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 7px 10px;
+      border-radius: 9px;
+      font-weight: 600;
+      font-size: 14px;
+      width: 100%;
+      min-width: 0;
+    }
+    .compact-input::placeholder { color: var(--muted); font-weight: 600; }
     .count { margin-top: 10px; }
     .signup { margin-top: 22px; padding: 16px; border: 1px dashed var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.6); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
@@ -160,9 +155,12 @@ HTML_TEMPLATE = """<!doctype html>
     footer { margin-top: 32px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; }
     @media (max-width: 980px) {
       .hero { grid-template-columns: 1fr; }
-      .notes-grid { grid-template-columns: 1fr; }
-      .filter-groups { grid-template-columns: 1fr; }
+      .filter-compact { grid-template-columns: 1fr 1fr; }
+      .compact-select, .compact-input { font-size: 13px; }
       .calendar-grid td { min-height: 108px; height: 108px; }
+    }
+    @media (max-width: 640px) {
+      .filter-compact { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -186,110 +184,71 @@ HTML_TEMPLATE = """<!doctype html>
           <a href=\"about.html\">How This Works</a>
           <a href=\"rss.xml\">Subscribe via RSS</a>
         </div>
-        <div class=\"intro-block muted\">
-          Try `Main filters` for age/month/price, and `Places` when you want to zoom in by venue area or organiser.
-        </div>
       </div>
     </section>
 
     <section class=\"panel\" id=\"featured\">
-      <div class=\"panel-title\">Featured This Week</div>
+      <div id=\"featured-title\" class=\"panel-title\">Featured This Week</div>
       <div id=\"featured-grid\" class=\"featured-grid\"></div>
       <div id=\"featured-empty\" class=\"muted hidden\">No events with clear dates in this week window.</div>
     </section>
 
-    <section class=\"panel\" id=\"curator-notes\">
-      <div class=\"panel-title\">Curator Notes</div>
-      <div class=\"notes-grid\">
-        <article class=\"notes-card\">
-          <h3 class=\"notes-title\">Top Picks This Week</h3>
-          <div class=\"notes-sub\">A quick LLM-style shortlist for the next 7 days.</div>
-          <ul id=\"notes-week\" class=\"notes-list\"></ul>
-        </article>
-        <article class=\"notes-card\">
-          <h3 class=\"notes-title\">Fun In The Next 30 Days</h3>
-          <div class=\"notes-sub\">Things people will likely want to bookmark early.</div>
-          <ul id=\"notes-month\" class=\"notes-list\"></ul>
-        </article>
-      </div>
-    </section>
-
     <div class=\"panel\" id=\"filters\">
-      <div class=\"filter-tabs\" id=\"filter-tabs\">
-        <button class=\"filter-btn active\" data-tab=\"main\">Main filters</button>
-        <button class=\"filter-btn\" data-tab=\"places\">Places</button>
-        <button class=\"filter-btn\" data-tab=\"coverage\">Coverage</button>
-      </div>
-      <div class=\"filter-groups\" id=\"filter-main\">
-        <div class=\"filter-group\">
-          <div class=\"muted\">Age</div>
-          <div class=\"filters\" id=\"age-filters\">
-            <button class=\"filter-btn active\" data-age=\"all\">All ages</button>
-            <button class=\"filter-btn\" data-age=\"0-5\">0-5</button>
-            <button class=\"filter-btn\" data-age=\"6-12\">6-12</button>
-            <button class=\"filter-btn\" data-age=\"13-17\">13-17</button>
-          </div>
-        </div>
-        <div class=\"filter-group\">
-          <div class=\"muted\">Category</div>
-          <div class=\"filters\" id=\"category-filters\">
-            <button class=\"filter-btn active\" data-category=\"all\">All categories</button>
-            <button class=\"filter-btn\" data-category=\"Theatre\">Theatre</button>
-            <button class=\"filter-btn\" data-category=\"Opera\">Opera</button>
-            <button class=\"filter-btn\" data-category=\"Orchestra\">Orchestra</button>
-            <button class=\"filter-btn\" data-category=\"Cinema\">Cinema</button>
-            <button class=\"filter-btn\" data-category=\"Dance\">Dance</button>
-            <button class=\"filter-btn\" data-category=\"Music\">Music</button>
-            <button class=\"filter-btn\" data-category=\"Workshop\">Workshop</button>
-            <button class=\"filter-btn\" data-category=\"Exhibition\">Exhibition</button>
-          </div>
-        </div>
-        <div class=\"filter-group\">
-          <div class=\"muted\">Month</div>
-          <div class=\"filters\" id=\"month-filters\">
-            <select id=\"month-select\" class=\"month-select\"></select>
-            <button class=\"filter-btn\" id=\"month-this\">This month</button>
-          </div>
-        </div>
-        <div class=\"filter-group\">
-          <div class=\"muted\">Price</div>
-          <div class=\"filters\" id=\"price-filters\">
-            <button class=\"filter-btn active\" data-price=\"all\">All prices</button>
-            <button class=\"filter-btn\" data-price=\"free\">Free only</button>
-            <label class=\"price-wrap\"><span>Max S$</span><input id=\"max-price\" class=\"price-input\" type=\"number\" min=\"0\" step=\"1\" placeholder=\"e.g. 40\" /></label>
-          </div>
-        </div>
-        <div class=\"filter-group\">
-          <div class=\"muted\">View</div>
-          <div class=\"view-toggle\" id=\"view-toggle\">
-            <button class=\"filter-btn active\" data-view=\"cards\">Card view</button>
-            <button class=\"filter-btn\" data-view=\"calendar\">Calendar view</button>
-          </div>
-        </div>
-      </div>
-      <div class=\"filter-groups hidden\" id=\"filter-places\">
-        <div class=\"filter-group\">
-          <div class=\"muted\">Location</div>
-          <div class=\"filters\" id=\"location-filters\">
-            <select id=\"location-select\" class=\"month-select\"></select>
-          </div>
-        </div>
-        <div class=\"filter-group\">
-          <div class=\"muted\">Venue Source</div>
-          <div class=\"filters\" id=\"source-filters\">
-            <select id=\"source-select\" class=\"month-select\"></select>
-          </div>
-        </div>
-      </div>
-      <div class=\"filter-groups hidden\" id=\"filter-coverage\">
-        <div class=\"filter-group\">
-          <div class=\"muted\">Configured Sources</div>
-          <div class=\"muted\">__SCRAPED_PLACES__</div>
-        </div>
-        <div class=\"filter-group\">
-          <div class=\"muted\">Sources In This Run</div>
-          <div class=\"muted\">__SOURCE_SUMMARY__</div>
-        </div>
+      <div class=\"panel-title\">Filters</div>
+      <div class=\"filter-compact\">
+        <label class=\"filter-field\">
+          <span class=\"muted\">Age</span>
+          <select id=\"age-select\" class=\"compact-select\">
+            <option value=\"all\">All ages</option>
+            <option value=\"0-5\">0-5</option>
+            <option value=\"6-12\">6-12</option>
+            <option value=\"13-17\">13-17</option>
+          </select>
+        </label>
+        <label class=\"filter-field\">
+          <span class=\"muted\">Category</span>
+          <select id=\"category-select\" class=\"compact-select\">
+            <option value=\"all\">All categories</option>
+            <option value=\"Theatre\">Theatre</option>
+            <option value=\"Opera\">Opera</option>
+            <option value=\"Orchestra\">Orchestra</option>
+            <option value=\"Cinema\">Cinema</option>
+            <option value=\"Dance\">Dance</option>
+            <option value=\"Music\">Music</option>
+            <option value=\"Workshop\">Workshop</option>
+            <option value=\"Exhibition\">Exhibition</option>
+          </select>
+        </label>
+        <label class=\"filter-field\">
+          <span class=\"muted\">Month</span>
+          <select id=\"month-select\" class=\"compact-select\"></select>
+        </label>
+        <label class=\"filter-field\">
+          <span class=\"muted\">View</span>
+          <select id=\"view-select\" class=\"compact-select\">
+            <option value=\"cards\">Card view</option>
+            <option value=\"calendar\">Calendar view</option>
+          </select>
+        </label>
+        <label class=\"filter-field\">
+          <span class=\"muted\">Location</span>
+          <select id=\"location-select\" class=\"compact-select\"></select>
+        </label>
+        <label class=\"filter-field\">
+          <span class=\"muted\">Source</span>
+          <select id=\"source-select\" class=\"compact-select\"></select>
+        </label>
+        <label class=\"filter-field\">
+          <span class=\"muted\">Price Mode</span>
+          <select id=\"price-mode-select\" class=\"compact-select\">
+            <option value=\"all\">All prices</option>
+            <option value=\"free\">Free only</option>
+          </select>
+        </label>
+        <label class=\"filter-field\">
+          <span class=\"muted\">Max S$</span>
+          <input id=\"max-price\" class=\"compact-input\" type=\"number\" min=\"0\" step=\"1\" placeholder=\"e.g. 40\" />
+        </label>
       </div>
       <div id=\"result-count\" class=\"muted count\"></div>
     </div>
@@ -570,24 +529,13 @@ HTML_TEMPLATE = """<!doctype html>
         if (!opts.some(o => o.value === key)) opts.push({ value: key, label: monthLabel(key) });
       });
       select.innerHTML = opts.map(o => `<option value=\"${o.value}\">${escapeHtml(o.label)}</option>`).join('');
-      state.month = current && opts.some(o => o.value === current) ? current : 'all';
+      const hasCurrentEvents = Boolean(current && keys.includes(current));
+      state.month = hasCurrentEvents ? current : 'all';
       select.value = state.month;
       select.addEventListener('change', () => {
         state.month = select.value;
         renderAll();
       });
-
-      const thisBtn = document.getElementById('month-this');
-      if (thisBtn) {
-        thisBtn.addEventListener('click', () => {
-          const nowKey = monthKeyFromDate(new Date());
-          if (nowKey && Array.from(select.options).some(o => o.value === nowKey)) {
-            select.value = nowKey;
-            state.month = nowKey;
-            renderAll();
-          }
-        });
-      }
     }
 
     function setupLocationFilter() {
@@ -616,35 +564,42 @@ HTML_TEMPLATE = """<!doctype html>
       });
     }
 
-    function setupFilterTabs() {
-      const tabButtons = document.querySelectorAll('#filter-tabs .filter-btn');
-      const main = document.getElementById('filter-main');
-      const places = document.getElementById('filter-places');
-      const coverage = document.getElementById('filter-coverage');
-      tabButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-          tabButtons.forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          const tab = btn.dataset.tab || 'main';
-          state.activeTab = tab;
-          if (main) main.classList.toggle('hidden', tab !== 'main');
-          if (places) places.classList.toggle('hidden', tab !== 'places');
-          if (coverage) coverage.classList.toggle('hidden', tab !== 'coverage');
-        });
-      });
-    }
-
-    function setupPriceFilters() {
-      document.querySelectorAll('#price-filters .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('#price-filters .filter-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          state.priceMode = btn.dataset.price || 'all';
+    function setupSimpleFilters() {
+      const age = document.getElementById('age-select');
+      const category = document.getElementById('category-select');
+      const view = document.getElementById('view-select');
+      const priceMode = document.getElementById('price-mode-select');
+      const input = document.getElementById('max-price');
+      if (age) {
+        age.value = state.age;
+        age.addEventListener('change', () => {
+          state.age = age.value;
           renderAll();
         });
-      });
-      const input = document.getElementById('max-price');
+      }
+      if (category) {
+        category.value = state.category;
+        category.addEventListener('change', () => {
+          state.category = category.value;
+          renderAll();
+        });
+      }
+      if (view) {
+        view.value = state.view;
+        view.addEventListener('change', () => {
+          state.view = view.value || 'cards';
+          renderAll();
+        });
+      }
+      if (priceMode) {
+        priceMode.value = state.priceMode;
+        priceMode.addEventListener('change', () => {
+          state.priceMode = priceMode.value || 'all';
+          renderAll();
+        });
+      }
       if (input) {
+        input.value = state.maxPrice ?? '';
         input.addEventListener('input', () => {
           const raw = input.value.trim();
           if (!raw) {
@@ -658,17 +613,6 @@ HTML_TEMPLATE = """<!doctype html>
       }
     }
 
-    function setupViewToggle() {
-      document.querySelectorAll('#view-toggle .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('#view-toggle .filter-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          state.view = btn.dataset.view || 'cards';
-          renderAll();
-        });
-      });
-    }
-
     function weekWindowInSg() {
       const now = new Date();
       const todayKey = sgDateKey(now);
@@ -680,11 +624,51 @@ HTML_TEMPLATE = """<!doctype html>
       return [start, end];
     }
 
+    function shortDateKey(key, includeYear = false) {
+      const d = keyToUtcDate(key);
+      if (!d) return key;
+      return d.toLocaleDateString('en-SG', {
+        timeZone: 'Asia/Singapore',
+        day: 'numeric',
+        month: 'short',
+        year: includeYear ? 'numeric' : undefined,
+      });
+    }
+
+    function featuredWhy(ev, weekStart, weekEnd) {
+      const categories = eventCategories(ev);
+      const age = bucketLabel(ev);
+      const minPrice = eventMinPrice(ev);
+      const span = eventDateSpan(ev);
+      let timing = 'it stands out in the upcoming mix';
+      if (span) {
+        if (span[0] >= weekStart && span[0] <= weekEnd) {
+          timing = 'it starts this week';
+        } else if (span[0] <= weekEnd && span[1] >= weekStart) {
+          timing = 'it is running this week';
+        }
+      }
+
+      const focus = categories.length ? categories.slice(0, 2).join(' + ') : 'culture';
+      const reasons = [`Included because ${timing} and focuses on ${focus.toLowerCase()}`];
+      if (age === 'all ages') {
+        reasons.push('it works for mixed-age plans');
+      } else if (age !== 'age unknown') {
+        reasons.push(`it fits the ${age} bracket`);
+      }
+      if (minPrice === 0) reasons.push('entry is free');
+      return `${reasons.join(', ')}.`;
+    }
+
     function renderFeatured() {
       const box = document.getElementById('featured-grid');
       const empty = document.getElementById('featured-empty');
+      const title = document.getElementById('featured-title');
       if (!box || !empty) return;
       const [weekStart, weekEnd] = weekWindowInSg();
+      if (title) {
+        title.textContent = `Featured This Week (${shortDateKey(weekStart)} - ${shortDateKey(weekEnd, true)})`;
+      }
       const picked = events
         .filter(ev => {
           const span = eventDateSpan(ev);
@@ -707,85 +691,12 @@ HTML_TEMPLATE = """<!doctype html>
             <article class=\"mini-card\">
               <a class=\"mini-title\" href=\"${escapeHtml(href)}\">${escapeHtml(ev.title || 'Untitled Event')}</a>
               <div class=\"mini-meta\">${escapeHtml(formatDateLabel(ev))}</div>
+              <div class=\"mini-meta\">${escapeHtml(featuredWhy(ev, weekStart, weekEnd))}</div>
               <div class=\"mini-meta\">${escapeHtml(eventLocation(ev))} · ${escapeHtml(sourceLabel(ev.source))}</div>
             </article>
           `;
         })
         .join('');
-    }
-
-    function inWindow(ev, startKey, endKey) {
-      const span = eventDateSpan(ev);
-      if (!span) return false;
-      return span[0] <= endKey && span[1] >= startKey;
-    }
-
-    function eventCuratorScore(ev, windowDays) {
-      let score = 0;
-      const categories = eventCategories(ev);
-      const minPrice = eventMinPrice(ev);
-      if (categories.includes('Theatre')) score += 3;
-      if (categories.includes('Music')) score += 2;
-      if (categories.includes('Dance')) score += 2;
-      if (categories.includes('Orchestra')) score += 2;
-      if (categories.includes('Workshop')) score += 1;
-      if (categories.includes('Exhibition')) score += 1;
-      if (minPrice === 0) score += 2;
-      if (bucketLabel(ev) === 'all ages') score += 2;
-      if (bucketLabel(ev) === '0-12') score += 1;
-      if (!ev.start && ev.raw_date) score -= 1;
-      const d = parseDateSafe(ev.start);
-      if (d) {
-        const key = sgDateKey(d);
-        const today = sgDateKey(new Date());
-        if (today && key && key >= today) {
-          const dayOffset = Math.max(0, Math.floor((keyToUtcDate(key) - keyToUtcDate(today)) / (1000 * 60 * 60 * 24)));
-          score += Math.max(0, windowDays - dayOffset);
-        }
-      }
-      return score;
-    }
-
-    function noteLine(ev) {
-      const bits = [];
-      const categories = eventCategories(ev);
-      const minPrice = eventMinPrice(ev);
-      if (categories.length) bits.push(categories.slice(0, 2).join(' + '));
-      const age = bucketLabel(ev);
-      if (age && age !== 'age unknown') bits.push(age);
-      if (minPrice === 0) bits.push('free');
-      const why = bits.length ? bits.join(' · ') : sourceLabel(ev.source);
-      return `${formatDateLabel(ev)} · ${why}`;
-    }
-
-    function fillNotesList(elId, rows, maxCount) {
-      const el = document.getElementById(elId);
-      if (!el) return;
-      if (!rows.length) {
-        el.innerHTML = '<li>No clear picks in this window yet.</li>';
-        return;
-      }
-      el.innerHTML = rows.slice(0, maxCount).map(ev => {
-        const href = eventHref(ev);
-        return `<li><a href=\"${escapeHtml(href)}\">${escapeHtml(ev.title || 'Untitled Event')}</a><br />${escapeHtml(noteLine(ev))}</li>`;
-      }).join('');
-    }
-
-    function renderCuratorNotes() {
-      const today = sgDateKey(new Date());
-      if (!today) return;
-      const weekEnd = addDaysKey(today, 6);
-      const monthEnd = addDaysKey(today, 30);
-
-      const weekly = events
-        .filter(ev => inWindow(ev, today, weekEnd))
-        .sort((a, b) => eventCuratorScore(b, 7) - eventCuratorScore(a, 7) || eventSort(a, b));
-      const month = events
-        .filter(ev => inWindow(ev, today, monthEnd))
-        .sort((a, b) => eventCuratorScore(b, 30) - eventCuratorScore(a, 30) || eventSort(a, b));
-
-      fillNotesList('notes-week', weekly, 5);
-      fillNotesList('notes-month', month, 7);
     }
 
     function renderCards(rows) {
@@ -920,35 +831,13 @@ HTML_TEMPLATE = """<!doctype html>
       priceMode: 'all',
       maxPrice: null,
       view: 'cards',
-      activeTab: 'main',
     };
-
-    document.querySelectorAll('#age-filters .filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#age-filters .filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.age = btn.dataset.age;
-        renderAll();
-      });
-    });
-
-    document.querySelectorAll('#category-filters .filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#category-filters .filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.category = btn.dataset.category;
-        renderAll();
-      });
-    });
 
     setupMonthFilter();
     setupLocationFilter();
     setupSourceFilter();
-    setupPriceFilters();
-    setupViewToggle();
-    setupFilterTabs();
+    setupSimpleFilters();
     renderFeatured();
-    renderCuratorNotes();
     renderAll();
   </script>
 </body>

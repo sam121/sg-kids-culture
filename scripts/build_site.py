@@ -115,11 +115,9 @@ HTML_TEMPLATE = """<!doctype html>
     .mini-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
     .mini-title { margin: 0; font-weight: 700; font-size: 15px; color: var(--ink); text-decoration: none; }
     .mini-meta { margin-top: 6px; color: var(--muted); font-size: 13px; }
-    .filter-compact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+    .filter-compact { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
     .filter-field { display: flex; flex-direction: column; gap: 4px; }
-    .filter-field-wide { display: flex; flex-direction: column; gap: 6px; grid-column: 1 / -1; }
     .filter-field .muted { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
-    .filter-field-wide .muted { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
     .compact-select, .compact-input {
       border: 1px solid var(--line);
       background: #fff;
@@ -131,22 +129,78 @@ HTML_TEMPLATE = """<!doctype html>
       width: 100%;
       min-width: 0;
     }
-    .filter-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
-    .filter-chip {
+    .multi-filter { position: relative; }
+    .multi-trigger {
+      width: 100%;
       border: 1px solid var(--line);
       background: #fff;
       color: var(--ink);
-      border-radius: 999px;
-      padding: 7px 12px;
+      border-radius: 10px;
+      padding: 9px 12px;
       font-weight: 600;
-      font-size: 13px;
-      line-height: 1.2;
+      font-size: 14px;
+      line-height: 1.3;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .multi-trigger.open {
+      border-color: #bdb7a5;
+      box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+    }
+    .multi-trigger-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: left;
+      flex: 1;
+    }
+    .multi-caret {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1;
+    }
+    .multi-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      z-index: 40;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      max-height: 240px;
+      overflow: auto;
+      box-shadow: var(--shadow);
+      padding: 6px;
+    }
+    .multi-option {
+      width: 100%;
+      border: none;
+      background: #fff;
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 7px 8px;
+      text-align: left;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       cursor: pointer;
     }
-    .filter-chip.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
+    .multi-option:hover { background: #f5f6f8; }
+    .multi-option.active {
+      background: #e6f4f2;
+      color: #0e5d57;
+      font-weight: 700;
+    }
+    .multi-check {
+      width: 16px;
+      flex: 0 0 16px;
+      text-align: center;
+      font-size: 12px;
     }
     .compact-input::placeholder { color: var(--muted); font-weight: 600; }
     .count { margin-top: 10px; }
@@ -215,13 +269,13 @@ HTML_TEMPLATE = """<!doctype html>
     <div class=\"panel\" id=\"filters\">
       <div class=\"panel-title\">Filters</div>
       <div class=\"filter-compact\">
-        <div class=\"filter-field-wide\">
+        <div class=\"filter-field\">
           <span class=\"muted\">Age</span>
-          <div id=\"age-chips\" class=\"filter-chip-row\"></div>
+          <div id=\"age-filter\" class=\"multi-filter\"></div>
         </div>
-        <div class=\"filter-field-wide\">
+        <div class=\"filter-field\">
           <span class=\"muted\">Category</span>
-          <div id=\"category-chips\" class=\"filter-chip-row\"></div>
+          <div id=\"category-filter\" class=\"multi-filter\"></div>
         </div>
         <label class=\"filter-field\">
           <span class=\"muted\">Month</span>
@@ -234,13 +288,13 @@ HTML_TEMPLATE = """<!doctype html>
             <option value=\"calendar\">Calendar view</option>
           </select>
         </label>
-        <div class=\"filter-field-wide\">
+        <div class=\"filter-field\">
           <span class=\"muted\">Location</span>
-          <div id=\"location-chips\" class=\"filter-chip-row\"></div>
+          <div id=\"location-filter\" class=\"multi-filter\"></div>
         </div>
-        <div class=\"filter-field-wide\">
+        <div class=\"filter-field\">
           <span class=\"muted\">Source</span>
-          <div id=\"source-chips\" class=\"filter-chip-row\"></div>
+          <div id=\"source-filter\" class=\"multi-filter\"></div>
         </div>
         <label class=\"filter-field\">
           <span class=\"muted\">Price Mode</span>
@@ -290,6 +344,13 @@ HTML_TEMPLATE = """<!doctype html>
       { value: 'Workshop', label: 'Workshop' },
       { value: 'Exhibition', label: 'Exhibition' },
     ];
+    const multiFilterMeta = {
+      age: { containerId: 'age-filter', allLabel: 'All ages', options: ageFilterOptions },
+      category: { containerId: 'category-filter', allLabel: 'All categories', options: categoryFilterOptions },
+      location: { containerId: 'location-filter', allLabel: 'All locations', options: [{ value: 'all', label: 'All locations' }] },
+      source: { containerId: 'source-filter', allLabel: 'All sources', options: [{ value: 'all', label: 'All sources' }] },
+    };
+    let openMultiKey = null;
     const grid = document.getElementById('grid');
     const calendarView = document.getElementById('calendar-view');
 
@@ -531,18 +592,73 @@ HTML_TEMPLATE = """<!doctype html>
       return normalizeMultiSelection(next);
     }
 
-    function renderChipGroup(container, options, selectedValues, onChange) {
+    function selectedSummary(selectedValues, options, allLabel) {
       const selected = normalizeMultiSelection(selectedValues);
-      container.innerHTML = options
-        .map(opt => {
-          const active = selected.includes('all') ? opt.value === 'all' : selected.includes(opt.value);
-          return `<button type=\"button\" class=\"filter-chip${active ? ' active' : ''}\" data-value=\"${escapeHtml(opt.value)}\">${escapeHtml(opt.label)}</button>`;
-        })
-        .join('');
-      container.querySelectorAll('.filter-chip').forEach(btn => {
+      if (selected.includes('all')) return allLabel;
+      const labels = selected
+        .map(value => options.find(opt => opt.value === value)?.label || value)
+        .filter(Boolean);
+      if (labels.length === 0) return allLabel;
+      const joined = labels.join(', ');
+      if (labels.length > 2 || joined.length > 30) return `${labels.length} selected`;
+      return joined;
+    }
+
+    function syncSelectionWithOptions(key) {
+      const meta = multiFilterMeta[key];
+      if (!meta) return;
+      const valid = new Set(meta.options.map(opt => opt.value));
+      const kept = normalizeMultiSelection(state[key]).filter(value => value === 'all' || valid.has(value));
+      state[key] = normalizeMultiSelection(kept.length ? kept : ['all']);
+    }
+
+    function renderAllMultiDropdowns() {
+      Object.keys(multiFilterMeta).forEach(key => renderMultiDropdown(key));
+    }
+
+    function renderMultiDropdown(key) {
+      const meta = multiFilterMeta[key];
+      if (!meta) return;
+      const container = document.getElementById(meta.containerId);
+      if (!container) return;
+      syncSelectionWithOptions(key);
+      const selected = normalizeMultiSelection(state[key]);
+      const isOpen = openMultiKey === key;
+      const triggerLabel = selectedSummary(selected, meta.options, meta.allLabel);
+
+      container.innerHTML = `
+        <button type=\"button\" class=\"multi-trigger${isOpen ? ' open' : ''}\" data-role=\"trigger\">
+          <span class=\"multi-trigger-text\">${escapeHtml(triggerLabel)}</span>
+          <span class=\"multi-caret\">${isOpen ? '▲' : '▼'}</span>
+        </button>
+        <div class=\"multi-menu${isOpen ? '' : ' hidden'}\" data-role=\"menu\">
+          ${meta.options.map(opt => {
+            const active = selected.includes('all') ? opt.value === 'all' : selected.includes(opt.value);
+            return `
+              <button type=\"button\" class=\"multi-option${active ? ' active' : ''}\" data-role=\"option\" data-value=\"${escapeHtml(opt.value)}\">
+                <span class=\"multi-check\">${active ? '✓' : ''}</span>
+                <span>${escapeHtml(opt.label)}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      const trigger = container.querySelector('[data-role=\"trigger\"]');
+      if (trigger) {
+        trigger.addEventListener('click', () => {
+          openMultiKey = openMultiKey === key ? null : key;
+          renderAllMultiDropdowns();
+        });
+      }
+
+      container.querySelectorAll('[data-role=\"option\"]').forEach(btn => {
         btn.addEventListener('click', () => {
-          const next = toggleMultiSelection(selected, btn.dataset.value || 'all');
-          onChange(next);
+          const value = btn.getAttribute('data-value') || 'all';
+          state[key] = toggleMultiSelection(selected, value);
+          openMultiKey = key;
+          renderMultiDropdown(key);
+          renderAll();
         });
       });
     }
@@ -608,53 +724,24 @@ HTML_TEMPLATE = """<!doctype html>
     }
 
     function setupLocationFilter() {
-      const container = document.getElementById('location-chips');
-      if (!container) return;
       const locations = Array.from(new Set(events.map(eventLocation))).filter(Boolean).sort((a, b) => a.localeCompare(b));
-      const options = [{ value: 'all', label: 'All locations' }].concat(locations.map(loc => ({ value: loc, label: loc })));
-      const rerender = () => renderChipGroup(container, options, state.location, next => {
-        state.location = next;
-        rerender();
-        renderAll();
-      });
-      rerender();
+      multiFilterMeta.location.options = [{ value: 'all', label: 'All locations' }].concat(locations.map(loc => ({ value: loc, label: loc })));
+      syncSelectionWithOptions('location');
+      renderMultiDropdown('location');
     }
 
     function setupSourceFilter() {
-      const container = document.getElementById('source-chips');
-      if (!container) return;
       const sources = Array.from(new Set(events.map(ev => String(ev.source || '').toLowerCase()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-      const options = [{ value: 'all', label: 'All sources' }].concat(sources.map(src => ({ value: src, label: sourceLabel(src) })));
-      const rerender = () => renderChipGroup(container, options, state.source, next => {
-        state.source = next;
-        rerender();
-        renderAll();
-      });
-      rerender();
+      multiFilterMeta.source.options = [{ value: 'all', label: 'All sources' }].concat(sources.map(src => ({ value: src, label: sourceLabel(src) })));
+      syncSelectionWithOptions('source');
+      renderMultiDropdown('source');
     }
 
     function setupSimpleFilters() {
-      const age = document.getElementById('age-chips');
-      const category = document.getElementById('category-chips');
       const view = document.getElementById('view-select');
       const priceMode = document.getElementById('price-mode-select');
       const input = document.getElementById('max-price');
-      if (age) {
-        const rerenderAge = () => renderChipGroup(age, ageFilterOptions, state.age, next => {
-          state.age = next;
-          rerenderAge();
-          renderAll();
-        });
-        rerenderAge();
-      }
-      if (category) {
-        const rerenderCategory = () => renderChipGroup(category, categoryFilterOptions, state.category, next => {
-          state.category = next;
-          rerenderCategory();
-          renderAll();
-        });
-        rerenderCategory();
-      }
+      renderAllMultiDropdowns();
       if (view) {
         view.value = state.view;
         view.addEventListener('change', () => {
@@ -682,6 +769,22 @@ HTML_TEMPLATE = """<!doctype html>
           renderAll();
         });
       }
+      document.addEventListener('click', ev => {
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest('.multi-filter')) return;
+        if (openMultiKey !== null) {
+          openMultiKey = null;
+          renderAllMultiDropdowns();
+        }
+      });
+      document.addEventListener('keydown', ev => {
+        if (ev.key !== 'Escape') return;
+        if (openMultiKey !== null) {
+          openMultiKey = null;
+          renderAllMultiDropdowns();
+        }
+      });
     }
 
     function weekWindowInSg() {

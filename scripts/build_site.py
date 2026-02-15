@@ -129,6 +129,11 @@ HTML_TEMPLATE = """<!doctype html>
       width: 100%;
       min-width: 0;
     }
+    .compact-select[multiple] {
+      min-height: 96px;
+      padding: 4px;
+      font-size: 13px;
+    }
     .compact-input::placeholder { color: var(--muted); font-weight: 600; }
     .count { margin-top: 10px; }
     .signup { margin-top: 22px; padding: 16px; border: 1px dashed var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.6); }
@@ -198,7 +203,7 @@ HTML_TEMPLATE = """<!doctype html>
       <div class=\"filter-compact\">
         <label class=\"filter-field\">
           <span class=\"muted\">Age</span>
-          <select id=\"age-select\" class=\"compact-select\">
+          <select id=\"age-select\" class=\"compact-select\" multiple size=\"4\">
             <option value=\"all\">All ages</option>
             <option value=\"0-5\">0-5</option>
             <option value=\"6-12\">6-12</option>
@@ -207,7 +212,7 @@ HTML_TEMPLATE = """<!doctype html>
         </label>
         <label class=\"filter-field\">
           <span class=\"muted\">Category</span>
-          <select id=\"category-select\" class=\"compact-select\">
+          <select id=\"category-select\" class=\"compact-select\" multiple size=\"6\">
             <option value=\"all\">All categories</option>
             <option value=\"Theatre\">Theatre</option>
             <option value=\"Opera\">Opera</option>
@@ -232,11 +237,11 @@ HTML_TEMPLATE = """<!doctype html>
         </label>
         <label class=\"filter-field\">
           <span class=\"muted\">Location</span>
-          <select id=\"location-select\" class=\"compact-select\"></select>
+          <select id=\"location-select\" class=\"compact-select\" multiple size=\"6\"></select>
         </label>
         <label class=\"filter-field\">
           <span class=\"muted\">Source</span>
-          <select id=\"source-select\" class=\"compact-select\"></select>
+          <select id=\"source-select\" class=\"compact-select\" multiple size=\"6\"></select>
         </label>
         <label class=\"filter-field\">
           <span class=\"muted\">Price Mode</span>
@@ -250,6 +255,7 @@ HTML_TEMPLATE = """<!doctype html>
           <input id=\"max-price\" class=\"compact-input\" type=\"number\" min=\"0\" step=\"1\" placeholder=\"e.g. 40\" />
         </label>
       </div>
+      <div class=\"muted\">Tip: hold Cmd/Ctrl to select multiple values in age, category, location, and source.</div>
       <div id=\"result-count\" class=\"muted count\"></div>
     </div>
 
@@ -490,16 +496,50 @@ HTML_TEMPLATE = """<!doctype html>
       return true;
     }
 
-    function matchesFilter(ev, filterAge, filterCategory, filterMonth, filterLocation, filterSource, filterPriceMode, filterPriceMax) {
-      if (filterAge !== 'all' && !eventBuckets(ev).includes(filterAge)) return false;
-      if (filterCategory !== 'all' && !eventCategories(ev).includes(filterCategory)) return false;
+    function normalizeMultiSelection(values) {
+      const list = Array.isArray(values) ? values : [values];
+      const cleaned = Array.from(new Set(list.map(v => String(v || '').trim()).filter(Boolean)));
+      if (cleaned.length === 0) return ['all'];
+      const withoutAll = cleaned.filter(v => v !== 'all');
+      return withoutAll.length > 0 ? withoutAll : ['all'];
+    }
+
+    function getMultiSelectValue(select) {
+      return normalizeMultiSelection(Array.from(select.selectedOptions).map(opt => opt.value));
+    }
+
+    function setMultiSelectValue(select, values) {
+      const normalized = normalizeMultiSelection(values);
+      Array.from(select.options).forEach(opt => {
+        opt.selected = normalized.includes(opt.value);
+      });
+      if (select.selectedOptions.length === 0 && select.options.length > 0) {
+        select.options[0].selected = true;
+      }
+    }
+
+    function matchesFilter(ev, filterAges, filterCategories, filterMonth, filterLocations, filterSources, filterPriceMode, filterPriceMax) {
+      const ages = normalizeMultiSelection(filterAges);
+      const categories = normalizeMultiSelection(filterCategories);
+      const locations = normalizeMultiSelection(filterLocations);
+      const sources = normalizeMultiSelection(filterSources);
+
+      if (!ages.includes('all')) {
+        const buckets = eventBuckets(ev);
+        if (!ages.some(age => buckets.includes(age))) return false;
+      }
+      if (!categories.includes('all')) {
+        const evCategories = eventCategories(ev);
+        if (!categories.some(category => evCategories.includes(category))) return false;
+      }
       if (filterMonth !== 'all') {
         const span = eventMonthSpan(ev);
         if (!span) return false;
         if (filterMonth < span[0] || filterMonth > span[1]) return false;
       }
-      if (filterLocation !== 'all' && eventLocation(ev) !== filterLocation) return false;
-      if (filterSource !== 'all' && String(ev.source || '').toLowerCase() !== filterSource) return false;
+      if (!locations.includes('all') && !locations.includes(eventLocation(ev))) return false;
+      const source = String(ev.source || '').toLowerCase();
+      if (!sources.includes('all') && !sources.includes(source)) return false;
       if (!matchesPrice(ev, filterPriceMode, filterPriceMax)) return false;
       return true;
     }
@@ -544,9 +584,10 @@ HTML_TEMPLATE = """<!doctype html>
       const locations = Array.from(new Set(events.map(eventLocation))).filter(Boolean).sort((a, b) => a.localeCompare(b));
       const opts = [{ value: 'all', label: 'All locations' }].concat(locations.map(loc => ({ value: loc, label: loc })));
       select.innerHTML = opts.map(o => `<option value=\"${escapeHtml(o.value)}\">${escapeHtml(o.label)}</option>`).join('');
-      select.value = state.location;
+      setMultiSelectValue(select, state.location);
       select.addEventListener('change', () => {
-        state.location = select.value;
+        state.location = getMultiSelectValue(select);
+        setMultiSelectValue(select, state.location);
         renderAll();
       });
     }
@@ -557,9 +598,10 @@ HTML_TEMPLATE = """<!doctype html>
       const sources = Array.from(new Set(events.map(ev => String(ev.source || '').toLowerCase()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
       const opts = [{ value: 'all', label: 'All sources' }].concat(sources.map(src => ({ value: src, label: sourceLabel(src) })));
       select.innerHTML = opts.map(o => `<option value=\"${escapeHtml(o.value)}\">${escapeHtml(o.label)}</option>`).join('');
-      select.value = state.source;
+      setMultiSelectValue(select, state.source);
       select.addEventListener('change', () => {
-        state.source = select.value;
+        state.source = getMultiSelectValue(select);
+        setMultiSelectValue(select, state.source);
         renderAll();
       });
     }
@@ -571,16 +613,18 @@ HTML_TEMPLATE = """<!doctype html>
       const priceMode = document.getElementById('price-mode-select');
       const input = document.getElementById('max-price');
       if (age) {
-        age.value = state.age;
+        setMultiSelectValue(age, state.age);
         age.addEventListener('change', () => {
-          state.age = age.value;
+          state.age = getMultiSelectValue(age);
+          setMultiSelectValue(age, state.age);
           renderAll();
         });
       }
       if (category) {
-        category.value = state.category;
+        setMultiSelectValue(category, state.category);
         category.addEventListener('change', () => {
-          state.category = category.value;
+          state.category = getMultiSelectValue(category);
+          setMultiSelectValue(category, state.category);
           renderAll();
         });
       }
@@ -813,21 +857,21 @@ HTML_TEMPLATE = """<!doctype html>
       const countEl = document.getElementById('result-count');
       if (countEl) {
         const monthText = state.month === 'all' ? 'All upcoming' : monthLabel(state.month);
-        const ageText = state.age === 'all' ? 'All ages' : state.age;
-        const categoryText = state.category === 'all' ? 'All categories' : state.category;
-        const locationText = state.location === 'all' ? 'All locations' : state.location;
-        const sourceText = state.source === 'all' ? 'All sources' : sourceLabel(state.source);
+        const ageText = state.age.includes('all') ? 'All ages' : state.age.join(', ');
+        const categoryText = state.category.includes('all') ? 'All categories' : state.category.join(', ');
+        const locationText = state.location.includes('all') ? 'All locations' : state.location.join(', ');
+        const sourceText = state.source.includes('all') ? 'All sources' : state.source.map(sourceLabel).join(', ');
         const priceText = priceFilterLabel(state.priceMode, state.maxPrice);
         countEl.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'} shown - ${monthText} - ${ageText} - ${categoryText} - ${locationText} - ${sourceText} - ${priceText}`;
       }
     }
 
     const state = {
-      age: 'all',
-      category: 'all',
+      age: ['all'],
+      category: ['all'],
       month: 'all',
-      location: 'all',
-      source: 'all',
+      location: ['all'],
+      source: ['all'],
       priceMode: 'all',
       maxPrice: null,
       view: 'cards',

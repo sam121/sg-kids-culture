@@ -262,7 +262,7 @@ HTML_TEMPLATE = """<!doctype html>
         <div class=\"subtitle\">A cheerful little culture scout for Singapore: I round up theatre, music, museum and festival plans, then help you filter them fast. Fresh batch lands every Monday at 9:00 AM SGT.</div>
         <div class=\"signup\">
           <div class=\"muted\">Get this list by email (Kit):</div>
-          <div id=\"kit-embed\"><script async data-uid=\"593cc608af\" src=\"https://singaporeculture.kit.com/593cc608af/index.js\"></script></div>
+          <div id=\"kit-embed\"><script async data-uid=\"c059b6fd10\" src=\"https://singaporeanculture.kit.com/c059b6fd10/index.js\"></script></div>
         </div>
         <div class=\"hero-links\">
           <a class=\"primary\" href=\"#filters\">Start Filtering</a>

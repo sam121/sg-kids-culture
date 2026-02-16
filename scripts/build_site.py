@@ -653,14 +653,16 @@ HTML_TEMPLATE = """<!doctype html>
 
       const trigger = container.querySelector('[data-role=\"trigger\"]');
       if (trigger) {
-        trigger.addEventListener('click', () => {
+        trigger.addEventListener('click', ev => {
+          ev.stopPropagation();
           openMultiKey = openMultiKey === key ? null : key;
           renderAllMultiDropdowns();
         });
       }
 
       container.querySelectorAll('[data-role=\"option\"]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', ev => {
+          ev.stopPropagation();
           const value = btn.getAttribute('data-value') || 'all';
           state[key] = toggleMultiSelection(selected, value);
           openMultiKey = key;
